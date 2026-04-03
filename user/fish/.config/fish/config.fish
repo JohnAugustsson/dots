@@ -18,6 +18,9 @@ function fish_prompt
 end
 
 set -x LD_LIBRARY_PATH /usr/local/lib
+set -Ux EDITOR nvim
+set -Ux VISUAL nvim
+set -Ux SSH_AUTH_SOCK ~/.ssh/agent.sock
 alias unrealEngine 'env SDL_VIDEODRIVER=x11 ~/unreal/unreal_engine/Engine/Binaries/Linux/UnrealEditor'
 alias dots "cd ~/dotfiles"
 alias stowu "cd ~/dotfiles/user && stow -t ~ *"
