@@ -3,6 +3,11 @@ edit = [
   { run = 'nvim "$@"', block = true, for = "unix" },
 ]
 
+edit = [
+  { run = 'nvim "$@"', block = true, for = "unix" },
+]
+
+
 [open]
 rules = [
   { mime = "text/*", use = "edit" },

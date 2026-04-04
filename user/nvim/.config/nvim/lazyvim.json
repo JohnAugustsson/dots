@@ -1,7 +1,8 @@
 {
   "extras": [
-    "lazyvim.plugins.extras.ai.avante",
-    "lazyvim.plugins.extras.util.dot"
+    "lazyvim.plugins.extras.editor.harpoon2",
+    "lazyvim.plugins.extras.util.dot",
+    "lazyvim.plugins.extras.util.mini-hipatterns"
   ],
   "install_version": 8,
   "news": {
