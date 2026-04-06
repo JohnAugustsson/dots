@@ -1,2 +1,10 @@
 -- bootstrap lazy.nvim, LazyVim and your plugins
 require("config.lazy")
+vim.keymap.set("x", "P", [["_dP]], { noremap = true, silent = true })
+vim.keymap.set("x", "p", [["_dP]], { noremap = true, silent = true })
+vim.keymap.set({ "n", "x" }, "x", [["_x]], { noremap = true, silent = true })
+vim.keymap.set({ "n", "x" }, "s", [["_s]], { noremap = true, silent = true })
+vim.keymap.set("n", "X", [["_X]], { noremap = true, silent = true })
+vim.keymap.set("n", "S", [["_S]], { noremap = true, silent = true })
+vim.keymap.set({ "n", "x" }, "c", '"+d', { noremap = true, silent = true })
+vim.keymap.set("n", "C", '"+D', { noremap = true, silent = true })

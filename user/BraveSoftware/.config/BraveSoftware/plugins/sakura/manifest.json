@@ -1,0 +1,75 @@
+{
+  "manifest_version": 3,
+  "version": "1.0.0",
+  "name": "sakura",
+  "theme": {
+    "colors": {
+      "frame": [
+        154,
+        100,
+        116
+      ],
+      "ntp_background": [
+        155,
+        138,
+        160
+      ],
+      "tab_text": [
+        17,
+        15,
+        18
+      ],
+      "tab_background_text": [
+        17,
+        15,
+        18
+      ],
+      "bookmark_text": [
+        17,
+        15,
+        18
+      ],
+      "ntp_text": [
+        17,
+        15,
+        18
+      ],
+      "ntp_link": [
+        6,
+        55,
+        116
+      ],
+      "ntp_header": [
+        150,
+        150,
+        150
+      ],
+      "toolbar": [
+        193,
+        137,
+        143
+      ],
+      "toolbar_text": [
+        17,
+        15,
+        18
+      ],
+      "button_background": [
+        0,
+        0,
+        0,
+        0
+      ],
+      "toolbar_button_icon": [
+        17,
+        15,
+        18
+      ]
+    },
+    "tints": {},
+    "properties": {
+      "ntp_background_alignment": "center",
+      "ntp_background_repeat": "no-repeat"
+    }
+  }
+}

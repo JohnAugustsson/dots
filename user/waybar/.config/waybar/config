@@ -4,7 +4,7 @@
         "position": "bottom",
         //"margin-left":20,
         "reload_style_on_change": true,
-        //"modules-left": [],
+        "modules-right": ["custom/player-prev", "mpris","custom/player-next"],
         "modules-center": ["hyprland/workspaces"],
         "modules-left": ["custom/notification", "clock","network","custom/audio-popup", "tray", "group/expand"],
 
@@ -45,6 +45,57 @@
                 "on-click-right": "shift_down",
                 "on-click": "shift_up"
             }
+        },
+        "mpris": {
+          "player": "playerctld",
+          "format": "{player_icon} {artist} - {title}",
+          "format-paused": "{status_icon} {player_icon} {artist} - {title}",
+          "player-icons": {
+            "default": "",
+            "spotify": "",
+            "brave": "",
+            "firefox": "",
+            "mpv": "󰐹",
+            "vlc": "󰐹"
+          },
+          "status-icons": {
+            "paused": "⏸"
+          },
+          /*"interval": 1,*/
+          "tooltip": true,
+          "min-length": 40,
+          "max-length": 40,
+          "justify": "left",
+          "on-click": "playerctl -p playerctld play-pause",
+          "on-click-middle": "playerctl -p playerctld previous",
+          "on-click-right": "playerctl -p playerctld next",
+
+          "on-scroll-up": "playerctld unshift",
+          "on-scroll-down": "playerctld shift"
+        },
+
+        "custom/player-prev": {
+          "format": "{}",
+          "exec": "printf '‹'",
+          "interval": 86400,
+          "tooltip": false,
+          "on-click": "playerctld unshift"
+        },
+
+        "custom/player-next": {
+          "format": "{}",
+          "exec": "printf '›'",
+          "interval": 86400,
+          "tooltip": false,
+          "on-click": "playerctld shift"
+        },
+
+        "custom/player-play": {
+          "format": "{}",
+          "exec": "printf '▶'",
+          "interval": 86400,
+          "tooltip": false,
+          "on-click": "playerctl -p playerctld play-pause"
         },
         "network": {
             "format" : "󰈀",
