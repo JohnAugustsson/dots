@@ -3,8 +3,17 @@ source /usr/share/cachyos-fish-config/cachyos-config.fish
 # overwrite greeting
 # potentially disabling fastfetch
 #function fish_greeting
-#    # smth smth
+#    echo "smth smth"
 #end
+
+function fv
+    echo "stowu, stows, dots, cava, htop, minimized-wins"
+end
+
+function minimized-wins
+    ~/.config/hypr/scripts/hypr-hidden-min.py $argv
+end
+
 function fish_prompt
     echo
     set_color green
@@ -25,3 +34,4 @@ alias unrealEngine 'env SDL_VIDEODRIVER=x11 ~/unreal/unreal_engine/Engine/Binari
 alias dots "cd ~/dotfiles"
 alias stowu "cd ~/dotfiles/user && stow -t ~ *"
 alias stows "cd ~/dotfiles/system && sudo stow -t / *"
+alias fav fv
