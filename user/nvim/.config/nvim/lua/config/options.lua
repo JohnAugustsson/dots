@@ -1,7 +1,7 @@
 -- Options are automatically loaded before lazy.nvim startup
 -- Default options that are always set: https://github.com/LazyVim/LazyVim/blob/main/lua/lazyvim/config/options.lua
 -- Add any additional options here
-vim.opt.clipboard = "unnamedplus"
+vim.opt.clipboard = ""
 vim.opt.virtualedit = "onemore"
 
 -- 'autoread' makes the buffer reload automatically as long as the buffer itself has no unsaved changes.
