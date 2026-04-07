@@ -1,19 +1,25 @@
 -- bootstrap lazy.nvim, LazyVim and your plugins
 require("config.lazy")
 
-vim.keymap.set("x", "P", [["_dP]], { noremap = true, silent = true })
-vim.keymap.set("x", "p", [["_dP]], { noremap = true, silent = true })
+local stash = "z"
+
+vim.keymap.set("x", "P", [["+P]], { noremap = true, silent = true })
+vim.keymap.set("x", "p", [["+p]], { noremap = true, silent = true })
+vim.keymap.set({ "n", "x" }, "p", [["+p]], { noremap = true, silent = true })
+vim.keymap.set({ "n", "x" }, "P", [["+P]], { noremap = true, silent = true })
+vim.keymap.set({ "n", "x" }, "å", '"' .. stash .. 'p', { noremap = true, silent = true })
+vim.keymap.set({ "n", "x" }, "Å", '"' .. stash .. 'P', { noremap = true, silent = true })
 
 vim.keymap.set({ "n", "x" }, "y", [["+y]], { noremap = true, silent = true })
 vim.keymap.set("n", "Y", [["+Y]], { noremap = true, silent = true })
 
-vim.keymap.set({ "n", "x" }, "d", [["_d]], { noremap = true, silent = true })
-vim.keymap.set("n", "D", [["_D]], { noremap = true, silent = true })
+vim.keymap.set({ "n", "x" }, "d", '"' .. stash .. 'd', { noremap = true, silent = true })
+vim.keymap.set("n", "D", '"' .. stash .. 'D', { noremap = true, silent = true })
 
-vim.keymap.set({ "n", "x" }, "c", [["+c]], { noremap = true, silent = true })
-vim.keymap.set("n", "C", [["+C]], { noremap = true, silent = true })
+vim.keymap.set({ "n", "x" }, "c", '"' .. stash .. 'c', { noremap = true, silent = true })
+vim.keymap.set("n", "C", '"' .. stash .. 'C', { noremap = true, silent = true })
 
-vim.keymap.set({ "n", "x" }, "x", [["_x]], { noremap = true, silent = true })
-vim.keymap.set("n", "X", [["_X]], { noremap = true, silent = true })
-vim.keymap.set({ "n", "x" }, "s", [["_s]], { noremap = true, silent = true })
-vim.keymap.set("n", "S", [["_S]], { noremap = true, silent = true })
+vim.keymap.set({ "n", "x" }, "x", '"' .. stash .. 'x', { noremap = true, silent = true })
+vim.keymap.set("n", "X", '"' .. stash .. 'X', { noremap = true, silent = true })
+vim.keymap.set({ "n", "x" }, "s", '"' .. stash .. 's', { noremap = true, silent = true })
+vim.keymap.set("n", "S", '"' .. stash .. 'S', { noremap = true, silent = true })
