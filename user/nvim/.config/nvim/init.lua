@@ -3,10 +3,10 @@ require("config.lazy")
 
 local stash = "z"
 
-vim.keymap.set("x", "P", [["+P]], { noremap = true, silent = true })
-vim.keymap.set("x", "p", [["+p]], { noremap = true, silent = true })
-vim.keymap.set({ "n", "x" }, "p", [["+p]], { noremap = true, silent = true })
-vim.keymap.set({ "n", "x" }, "P", [["+P]], { noremap = true, silent = true })
+vim.keymap.set("n", "p", [["+p]], { noremap = true, silent = true })
+vim.keymap.set("n", "P", [["+P]], { noremap = true, silent = true })
+vim.keymap.set("x", "p", [["_d"+P]], { noremap = true, silent = true })
+vim.keymap.set("x", "P", [["_d"+P]], { noremap = true, silent = true })
 vim.keymap.set({ "n", "x" }, "å", '"' .. stash .. 'p', { noremap = true, silent = true })
 vim.keymap.set({ "n", "x" }, "Å", '"' .. stash .. 'P', { noremap = true, silent = true })
 
