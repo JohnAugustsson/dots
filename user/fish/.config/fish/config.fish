@@ -26,6 +26,8 @@ function fish_prompt
     echo -n "> "
 end
 
+fish_add_path ~/.npm-global/bin
+
 set -x LD_LIBRARY_PATH /usr/local/lib
 set -Ux EDITOR nvim
 set -Ux VISUAL nvim
@@ -35,3 +37,13 @@ alias dots "cd ~/dotfiles"
 alias stowu "cd ~/dotfiles/user && stow -t ~ *"
 alias stows "cd ~/dotfiles/system && sudo stow -t / *"
 alias fav fv
+
+# GitHub CLI shortcuts
+alias pr 'gh pr'
+alias prs 'gh pr list'
+alias issue 'gh issue'
+alias issues 'gh issue list'
+alias repo 'gh repo'
+
+# OpenClaw Completion
+source "/home/ja/.openclaw/completions/openclaw.fish"
