@@ -45,5 +45,40 @@ alias issue 'gh issue'
 alias issues 'gh issue list'
 alias repo 'gh repo'
 
+function bw-tmux
+    set -l socket_dir (set -q OPENCLAW_TMUX_SOCKET_DIR; and echo $OPENCLAW_TMUX_SOCKET_DIR; or echo /tmp/openclaw-tmux-sockets)
+    mkdir -p "$socket_dir"
+
+    set -l socket "$socket_dir/openclaw-bw.sock"
+    set -l session "bw-auth-"(date +%Y%m%d-%H%M%S)
+
+    tmux -S "$socket" new -d -s "$session" -n shell
+    echo "Created Bitwarden tmux session: $session"
+    echo "Socket: $socket"
+    echo "Attach with: tmux -S $socket attach -t $session"
+    tmux -S "$socket" attach -t "$session"
+end
+
+function bw-tmux-login
+    set -l socket_dir (set -q OPENCLAW_TMUX_SOCKET_DIR; and echo $OPENCLAW_TMUX_SOCKET_DIR; or echo /tmp/openclaw-tmux-sockets)
+    mkdir -p "$socket_dir"
+
+    set -l socket "$socket_dir/openclaw-bw.sock"
+    set -l session "bw-auth-"(date +%Y%m%d-%H%M%S)
+
+    tmux -S "$socket" new -d -s "$session" -n shell
+
+    echo "Created Bitwarden tmux session: $session"
+    echo "Socket: $socket"
+    echo "Inside tmux, run these commands:"
+    echo "  bw login"
+    echo "  set -x BW_SESSION (bw unlock --raw)"
+    echo "  bw sync"
+    echo "  bw status"
+    echo
+    echo "Attaching now..."
+    tmux -S "$socket" attach -t "$session"
+end
+
 # OpenClaw Completion
 source "/home/ja/.openclaw/completions/openclaw.fish"

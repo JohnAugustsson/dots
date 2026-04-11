@@ -2,6 +2,7 @@
   "extras": [
     "lazyvim.plugins.extras.coding.luasnip",
     "lazyvim.plugins.extras.editor.harpoon2",
+    "lazyvim.plugins.extras.editor.telescope",
     "lazyvim.plugins.extras.util.dot",
     "lazyvim.plugins.extras.util.mini-hipatterns"
   ],
