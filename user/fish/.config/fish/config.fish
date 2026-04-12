@@ -32,7 +32,6 @@ set -x LD_LIBRARY_PATH /usr/local/lib
 set -Ux EDITOR nvim
 set -Ux VISUAL nvim
 set -Ux SSH_AUTH_SOCK ~/.ssh/agent.sock
-alias unrealEngine 'env SDL_VIDEODRIVER=x11 ~/unreal/unreal_engine/Engine/Binaries/Linux/UnrealEditor'
 alias dots "cd ~/dotfiles"
 alias stowu "cd ~/dotfiles/user && stow -t ~ *"
 alias stows "cd ~/dotfiles/system && sudo stow -t / *"
@@ -44,6 +43,11 @@ alias prs 'gh pr list'
 alias issue 'gh issue'
 alias issues 'gh issue list'
 alias repo 'gh repo'
+
+function claude-mansten
+    cd ~/unreal/projects/mansten
+    claude
+end
 
 function bw-tmux
     set -l socket_dir (set -q OPENCLAW_TMUX_SOCKET_DIR; and echo $OPENCLAW_TMUX_SOCKET_DIR; or echo /tmp/openclaw-tmux-sockets)

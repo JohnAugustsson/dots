@@ -23,3 +23,5 @@ vim.keymap.set({ "n", "x" }, "x", '"' .. stash .. "x", { noremap = true, silent 
 vim.keymap.set("n", "X", '"' .. stash .. "X", { noremap = true, silent = true })
 vim.keymap.set({ "n", "x" }, "s", '"' .. stash .. "s", { noremap = true, silent = true })
 vim.keymap.set("n", "S", '"' .. stash .. "S", { noremap = true, silent = true })
+
+vim.opt.statuscolumn = "%{v:lnum}%s %{v:relnum}"
