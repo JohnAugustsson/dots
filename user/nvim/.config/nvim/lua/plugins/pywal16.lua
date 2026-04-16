@@ -10,8 +10,7 @@ return {
         -- palette
         local bg = "#0E0D0F"
         local bg_alt = "#161417"
-        local bg_sel = "#2A2326"
-
+        local bg_sel = "#3A3035"
         local fg = "#DEC3C4"
         local fg_muted = "#8F7B7E"
         local fg_strong = "#F0DDDE"
@@ -73,16 +72,11 @@ return {
         set(0, "Special", { fg = pink_bright })
 
         -- selection / search
-        set(0, "Visual", {
-          fg = "NONE",
-          bg = bg_sel,
-          reverse = false,
-        })
-        set(0, "Search", { fg = bg, bg = pink_bright })
-        set(0, "IncSearch", { fg = bg, bg = fg_strong, bold = true })
-        set(0, "CurSearch", { fg = bg, bg = fg_strong, bold = true })
-        set(0, "MatchParen", { fg = fg_strong, bg = bg_sel, bold = true })
-
+        set(0, "Visual", { fg = "NONE", bg = bg_sel })
+        set(0, "Search", { fg = fg_strong, bg = mauve })
+        set(0, "IncSearch", { fg = bg, bg = pink_bright, bold = true })
+        set(0, "CurSearch", { fg = bg, bg = lavender_bright, bold = true })
+        set(0, "MatchParen", { fg = fg_strong, bg = slate, bold = true })
         -- popup menu
         set(0, "Pmenu", { fg = fg, bg = bg_alt })
         set(0, "PmenuSel", { fg = fg_strong, bg = bg_sel, bold = true })

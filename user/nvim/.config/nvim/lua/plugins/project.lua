@@ -18,7 +18,7 @@ return {
         "~/.local/*",
         "~/.cache/*",
       },
-      show_hidden = false,
+      show_hidden = true,
       silent_chdir = true,
       scope_chdir = "global",
     },
