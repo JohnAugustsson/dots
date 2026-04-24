@@ -111,16 +111,16 @@ function M.switch()
     return
   end
 
-  if lsp_switch_available(bufnr) then
-    local ok = pcall(vim.cmd, "LspClangdSwitchSourceHeader")
-    if ok then
+  for _, candidate in ipairs(candidate_paths(path)) do
+    if exists(candidate) and normalize(candidate) ~= normalize(path) then
+      open(candidate)
       return
     end
   end
 
-  for _, candidate in ipairs(candidate_paths(path)) do
-    if exists(candidate) then
-      open(candidate)
+  if lsp_switch_available(bufnr) then
+    local ok = pcall(vim.cmd, "LspClangdSwitchSourceHeader")
+    if ok then
       return
     end
   end
