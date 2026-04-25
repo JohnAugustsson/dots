@@ -7,8 +7,36 @@ vim.keymap.set("n", "p", [["+p]], { noremap = true, silent = true })
 vim.keymap.set("n", "P", [["+P]], { noremap = true, silent = true })
 vim.keymap.set("x", "p", [["_d"+P]], { noremap = true, silent = true })
 vim.keymap.set("x", "P", [["_d"+P]], { noremap = true, silent = true })
-vim.keymap.set({ "n", "x" }, "å", '"' .. stash .. "p", { noremap = true, silent = true })
-vim.keymap.set({ "n", "x" }, "Å", '"' .. stash .. "P", { noremap = true, silent = true })
+vim.keymap.set({ "n", "x" }, "<M-p>", '"' .. stash .. "p", { noremap = true, silent = true })
+vim.keymap.set({ "n", "x" }, "<M-P>", '"' .. stash .. "P", { noremap = true, silent = true })
+
+local swedish_bracket_ns = vim.api.nvim_create_namespace("swedish_bracket_remap")
+local swedish_bracket_map = {
+  ["å"] = "[",
+  ["¨"] = "]",
+  ["ö"] = "{",
+  ["ä"] = "}",
+  ["Å"] = "{",
+  ["^"] = "}",
+}
+
+vim.on_key(nil, swedish_bracket_ns)
+vim.on_key(function(key, typed)
+  local replacement = swedish_bracket_map[typed]
+  if not replacement then
+    return nil
+  end
+
+  local mode = vim.api.nvim_get_mode().mode
+  if mode:sub(1, 1) == "t" then
+    return nil
+  end
+
+  vim.schedule(function()
+    vim.api.nvim_input(replacement)
+  end)
+  return ""
+end, swedish_bracket_ns)
 
 vim.keymap.set({ "n", "x" }, "y", [["+y]], { noremap = true, silent = true })
 vim.keymap.set("n", "Y", [["+Y]], { noremap = true, silent = true })

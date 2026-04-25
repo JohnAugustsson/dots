@@ -1,0 +1,27 @@
+partial alphanumeric_keys
+xkb_symbols "ja_keyd_like" {
+    include "se(nodeadkeys)"
+
+    name[Group1] = "Swedish (Ja keyd-like)";
+
+    // Mirror the current keyd intent on a user/session XKB layer.
+    // Base typing stays Swedish; the changed outputs are the practical targets:
+    //   AltGr+å -> [
+    //   AltGr+¨ -> ]
+    //   AltGr+ö -> {
+    //   AltGr+ä -> }
+    //   AltGr+. -> (
+    //   AltGr+- -> )
+    //   ´ -> ~
+    //   Shift+´ -> ^
+    //   AltGr+´ -> ´
+    //   Shift+AltGr+´ -> `
+
+    key <AD11> { [ aring,       Aring,       bracketleft,  braceleft  ] };
+    key <AD12> { [ diaeresis,   asciicircum, bracketright, braceright ] };
+    key <AC10> { [ odiaeresis,  Odiaeresis,  braceleft,    braceleft  ] };
+    key <AC11> { [ adiaeresis,  Adiaeresis,  braceright,   braceright ] };
+    key <AB09> { [ period,      colon,       parenleft,    parenleft  ] };
+    key <AB10> { [ minus,       underscore,  parenright,   parenright ] };
+    key <AE12> { [ asciitilde,  asciicircum, acute,        grave      ] };
+};

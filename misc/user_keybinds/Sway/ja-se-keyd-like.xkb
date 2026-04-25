@@ -1,0 +1,31 @@
+xkb_keymap {
+    xkb_keycodes  { include "evdev+aliases(qwerty)" };
+    xkb_types     { include "complete" };
+    xkb_compat    { include "complete" };
+    xkb_symbols   {
+        include "pc+se(nodeadkeys)+inet(evdev)"
+        name[Group1] = "Swedish (Ja keyd-like)";
+
+        // Mirror the current keyd intent on a user/session XKB layer.
+        // Base typing stays Swedish; the changed outputs are the practical targets:
+        //   AltGr+å -> [
+        //   AltGr+¨ -> ]
+        //   AltGr+ö -> {
+        //   AltGr+ä -> }
+        //   AltGr+. -> (
+        //   AltGr+- -> )
+        //   ´ -> ~
+        //   Shift+´ -> ^
+        //   AltGr+´ -> ´
+        //   Shift+AltGr+´ -> `
+
+        key <AD11> { [ aring,       Aring,       bracketleft,  braceleft  ] };
+        key <AD12> { [ diaeresis,   asciicircum, bracketright, braceright ] };
+        key <AC10> { [ odiaeresis,  Odiaeresis,  braceleft,    braceleft  ] };
+        key <AC11> { [ adiaeresis,  Adiaeresis,  braceright,   braceright ] };
+        key <AB09> { [ period,      colon,       parenleft,    parenleft  ] };
+        key <AB10> { [ minus,       underscore,  parenright,   parenright ] };
+        key <AE12> { [ asciitilde,  asciicircum, acute,        grave      ] };
+    };
+    xkb_geometry  { include "pc(pc105)" };
+};
