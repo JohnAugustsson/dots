@@ -84,5 +84,11 @@ function bw-tmux-login
     tmux -S "$socket" attach -t "$session"
 end
 
+bind --erase --preset \cd
+bind --erase --preset \ce
+bind \ce exit
+bind \cf __fzf_insert_path
+bind \cg __fzf_insert_global_path
+
 # OpenClaw Completion
 source "/home/ja/.openclaw/completions/openclaw.fish"
