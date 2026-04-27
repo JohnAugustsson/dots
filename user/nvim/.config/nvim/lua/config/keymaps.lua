@@ -5,3 +5,7 @@
 vim.keymap.set("n", "<leader>ch", function()
   require("config.unreal_switch").switch()
 end, { desc = "Switch Header/Source" })
+
+vim.keymap.set("n", "<C-f>", function()
+  require("config.project_picker").pick_root_entries()
+end, { desc = "Project Root Search" })
