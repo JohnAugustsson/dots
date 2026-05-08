@@ -28,6 +28,9 @@ end
 
 fish_add_path ~/.npm-global/bin
 
+# Let terminal TUIs/fzf receive Ctrl+S instead of XOFF freezing the terminal.
+status is-interactive; and stty -ixon 2>/dev/null
+
 set -x LD_LIBRARY_PATH /usr/local/lib
 set -Ux EDITOR nvim
 set -Ux VISUAL nvim
@@ -86,9 +89,12 @@ end
 
 bind --erase --preset \cd
 bind --erase --preset \ce
+bind --erase --preset \cp
 bind \ce exit
 bind \cf __fzf_insert_path
 bind \cg __fzf_insert_global_path
+bind \cd __fzf_insert_project_path
+bind \cp __fzf_insert_cwd_path
 
 # OpenClaw Completion
 source "/home/ja/.openclaw/completions/openclaw.fish"

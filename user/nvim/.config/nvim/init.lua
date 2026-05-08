@@ -1,5 +1,6 @@
 -- bootstrap lazy.nvim, LazyVim and your plugins
 require("config.lazy")
+require("config.project_picker").setup()
 
 local stash = "z"
 
@@ -53,4 +54,3 @@ vim.keymap.set({ "n", "x" }, "s", '"' .. stash .. "s", { noremap = true, silent 
 vim.keymap.set("n", "S", '"' .. stash .. "S", { noremap = true, silent = true })
 
 vim.opt.statuscolumn = "%{v:lnum}%s %{v:relnum}"
-

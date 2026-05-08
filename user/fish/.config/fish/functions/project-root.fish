@@ -1,6 +1,6 @@
 function project-root
-    set -l roots_file ~/.config/fish/project-roots
-    mkdir -p ~/.config/fish
+    set -l roots_file ~/.config/project-root-picker/project-roots
+    mkdir -p ~/.config/project-root-picker
     test -f $roots_file; or touch $roots_file
 
     set -l mode add
@@ -50,13 +50,14 @@ function project-root
             echo "  project-root PATH        Add PATH"
             echo "  project-root -rm         Remove current directory"
             echo "  project-root -rm PATH    Remove PATH"
-            echo "  project-root -l          List saved root directories"
+            echo "  project-root -l          List saved root directories and discovered projects"
             echo "  project-root -c          Remove missing saved roots"
             echo "  project-root -h          Show this help"
             echo
             echo "Behavior:"
             echo "  - Saves directories as root scopes for Ctrl+F search"
             echo "  - Ctrl+F searches only inside saved roots"
+            echo "  - project-root -l shows roots plus discovered projects in a tree-style view"
             return 0
 
         case list
@@ -65,12 +66,55 @@ function project-root
                 return 0
             end
 
+            set -l helper (path resolve ~/.config/project-root-picker/scripts/project_root_picker.py)
+            set -l project_rows
+            if test -x $helper
+                set project_rows ($helper --projects-only --plain 2>/dev/null)
+            end
+
             for dir in $existing
                 test -n "$dir"; or continue
-                if test -d "$dir"
-                    echo "$dir"
-                else
+                set -l root (path resolve -- $dir 2>/dev/null)
+
+                if test -z "$root"; or not test -d "$root"
                     echo "$dir [missing]"
+                    continue
+                end
+
+                echo "$root"
+
+                set -l children
+                for row in $project_rows
+                    set -l fields (string split \t -- $row)
+                    test (count $fields) -ge 3; or continue
+
+                    set -l project $fields[1]
+                    set -l path (path resolve -- $fields[3] 2>/dev/null)
+                    test -n "$path"; or continue
+                    test "$path" != "$root"; or continue
+
+                    if string match -q -- "$root/*" "$path"
+                        set -l rel (string replace -- "$root/" "" "$path")
+                        set children $children "$rel|$project"
+                    end
+                end
+
+                set -l child_count (count $children)
+                for i in (seq 1 $child_count)
+                    set -l connector "├──"
+                    if test $i -eq $child_count
+                        set connector "└──"
+                    end
+
+                    set -l child_fields (string split "|" -- $children[$i])
+                    set -l rel $child_fields[1]
+                    set -l project $child_fields[2]
+
+                    if test "$rel" = "$project"
+                        echo "  $connector $rel"
+                    else
+                        echo "  $connector $rel ($project)"
+                    end
                 end
             end
             return 0

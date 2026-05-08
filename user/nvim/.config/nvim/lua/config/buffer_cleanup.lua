@@ -2,14 +2,19 @@ local uv = vim.uv or vim.loop
 
 local M = {}
 
-M.state = {
-  recent = {},
-}
-
 M.opts = {
   enabled = true,
   debug = false,
-  keep_recent = 8,
+}
+
+local project_markers = {
+  ".project-root",
+  ".git",
+  ".jj",
+  "package.json",
+  "pyproject.toml",
+  "Cargo.toml",
+  "Makefile",
 }
 
 local function notify(msg, level)
@@ -27,7 +32,7 @@ local function normalize_path(path)
     return nil
   end
   local real = uv.fs_realpath(expanded) or expanded
-  return real:gsub("/+", "/")
+  return real:gsub("/+", "/"):gsub("/$", "")
 end
 
 local function buf_name(bufnr)
@@ -43,9 +48,6 @@ local function is_normal_file_buffer(bufnr)
     return false
   end
   if not vim.api.nvim_buf_is_valid(bufnr) then
-    return false
-  end
-  if not vim.bo[bufnr].buflisted then
     return false
   end
   if vim.bo[bufnr].buftype ~= "" then
@@ -79,112 +81,76 @@ local function is_buffer_visible(bufnr)
   return false
 end
 
-local function get_alternate_buf()
-  local alt = vim.fn.bufnr("#")
-  if type(alt) == "number" and alt > 0 and vim.api.nvim_buf_is_valid(alt) then
-    return alt
-  end
-  return nil
-end
-
-local function get_harpoon_paths()
-  local ok, harpoon = pcall(require, "harpoon")
-  if not ok or type(harpoon) ~= "table" or type(harpoon.list) ~= "function" then
-    return {}
-  end
-
-  local ok_list, list = pcall(function()
-    return harpoon:list()
-  end)
-  if not ok_list or type(list) ~= "table" or type(list.items) ~= "table" then
-    return {}
-  end
-
-  local paths = {}
-  for _, item in ipairs(list.items) do
-    if type(item) == "table" and type(item.value) == "string" then
-      local path = normalize_path(item.value)
-      if path then
-        paths[path] = true
-      end
-    end
-  end
-  return paths
-end
-
-local function is_harpoon_buffer(bufnr)
-  local path = normalize_path(buf_name(bufnr))
-  if not path then
+local function is_inside(path, root)
+  if not path or not root then
     return false
   end
-  return get_harpoon_paths()[path] == true
+  return path == root or path:sub(1, #root + 1) == root .. "/"
 end
 
-local function push_recent(bufnr)
-  if not is_normal_file_buffer(bufnr) then
-    return
+local function find_project_root(start_path)
+  local path = normalize_path(start_path)
+  if not path then
+    return nil
   end
 
-  local recent = {}
-  table.insert(recent, bufnr)
-  for _, existing in ipairs(M.state.recent) do
-    if existing ~= bufnr and vim.api.nvim_buf_is_valid(existing) then
-      table.insert(recent, existing)
+  local stat = uv.fs_stat(path)
+  local dir = stat and stat.type == "directory" and path or vim.fn.fnamemodify(path, ":h")
+
+  while dir and dir ~= "" and dir ~= "/" do
+    for _, marker in ipairs(project_markers) do
+      if uv.fs_stat(dir .. "/" .. marker) then
+        return normalize_path(dir)
+      end
     end
-    if #recent >= M.opts.keep_recent then
+    local parent = vim.fn.fnamemodify(dir, ":h")
+    if parent == dir then
       break
     end
+    dir = parent
   end
-  M.state.recent = recent
-end
 
-local function get_grace_buf(current, alternate)
-  for _, bufnr in ipairs(M.state.recent) do
-    if bufnr ~= current and bufnr ~= alternate and vim.api.nvim_buf_is_valid(bufnr) and is_normal_file_buffer(bufnr) then
-      return bufnr
-    end
-  end
   return nil
 end
 
-local function protected_buffers(leaving_bufnr)
-  local protected = {}
-  local current = vim.api.nvim_get_current_buf()
-  protected[current] = true
+local function current_scope_root()
+  local cwd = normalize_path(vim.fn.getcwd())
 
-  local alternate = get_alternate_buf()
-  if alternate and alternate ~= leaving_bufnr then
-    protected[alternate] = true
-  end
-
-  local grace = get_grace_buf(current, alternate)
-  if grace then
-    protected[grace] = true
-  end
-
-  for bufnr = 1, vim.fn.bufnr("$") do
-    if vim.api.nvim_buf_is_valid(bufnr) and is_buffer_visible(bufnr) then
-      protected[bufnr] = true
+  local ok_project, project_mod = pcall(require, "project_nvim.project")
+  if ok_project and type(project_mod.get_project_root) == "function" then
+    local ok, root = pcall(project_mod.get_project_root)
+    root = ok and normalize_path(root) or nil
+    if root then
+      return root, "project.nvim"
     end
   end
 
-  return protected
+  local current = normalize_path(buf_name(vim.api.nvim_get_current_buf()))
+  local root = find_project_root(current) or find_project_root(cwd)
+  if root then
+    return root, "marker"
+  end
+
+  return cwd, "cwd"
 end
 
-local function should_delete_buffer(bufnr, protected)
+local function should_delete_buffer(bufnr, scope_root)
   if not is_normal_file_buffer(bufnr) then
     return false, "not-normal"
-  end
-  if protected[bufnr] then
-    return false, "protected"
   end
   if vim.bo[bufnr].modified then
     return false, "modified"
   end
-  if is_harpoon_buffer(bufnr) then
-    return false, "harpoon"
+  if is_buffer_visible(bufnr) then
+    return false, "visible"
   end
-  return true, "eligible"
+
+  local path = normalize_path(buf_name(bufnr))
+  if is_inside(path, scope_root) then
+    return false, "inside-scope"
+  end
+
+  return true, "outside-scope"
 end
 
 function M.cleanup_once(bufnr)
@@ -195,29 +161,33 @@ function M.cleanup_once(bufnr)
     return
   end
 
-  local protected = protected_buffers(bufnr)
-  local ok_delete, reason = should_delete_buffer(bufnr, protected)
+  local scope_root, source = current_scope_root()
+  local ok_delete, reason = should_delete_buffer(bufnr, scope_root)
   if not ok_delete then
-    notify(string.format("buffer_cleanup keep %d (%s)", bufnr, reason))
+    notify(string.format("buffer_cleanup keep %d (%s, scope=%s)", bufnr, reason, source))
     return
   end
 
-  local protected_now = protected_buffers(bufnr)
-  local ok_delete_now, reason_now = should_delete_buffer(bufnr, protected_now)
-  if not ok_delete_now then
-    notify(string.format("buffer_cleanup keep %d (%s)", bufnr, reason_now))
-    return
-  end
-
-  notify(string.format("buffer_cleanup bdelete %d", bufnr))
+  notify(string.format("buffer_cleanup bdelete %d (%s, scope=%s)", bufnr, reason, source))
   pcall(vim.cmd, string.format("silent! bdelete %d", bufnr))
+end
+
+function M.cleanup_all_outside_scope()
+  local scope_root = current_scope_root()
+  for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
+    if vim.api.nvim_buf_is_valid(bufnr) then
+      local ok_delete = should_delete_buffer(bufnr, scope_root)
+      if ok_delete then
+        pcall(vim.cmd, string.format("silent! bdelete %d", bufnr))
+      end
+    end
+  end
 end
 
 function M.on_buf_leave(bufnr)
   if not M.opts.enabled then
     return
   end
-  push_recent(bufnr)
   vim.schedule(function()
     M.cleanup_once(bufnr)
   end)
@@ -240,12 +210,8 @@ end
 M._normalize_path = normalize_path
 M._is_normal_file_buffer = is_normal_file_buffer
 M._is_buffer_visible = is_buffer_visible
-M._get_harpoon_paths = get_harpoon_paths
-M._is_harpoon_buffer = is_harpoon_buffer
-M._get_alternate_buf = get_alternate_buf
-M._push_recent = push_recent
-M._get_grace_buf = get_grace_buf
-M._protected_buffers = protected_buffers
+M._find_project_root = find_project_root
+M._current_scope_root = current_scope_root
 M._should_delete_buffer = should_delete_buffer
 
 return M
