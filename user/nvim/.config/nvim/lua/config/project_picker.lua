@@ -941,11 +941,22 @@ local function pick_entries_fzf(scope, title)
         return
       end
 
+      local stat = uv.fs_stat(selected_path)
       if result.mode == "rg" then
-        M.open_project_file(selected_path)
+        if not M.open_project_file(selected_path) and stat and stat.type == "file" then
+          vim.cmd.edit(vim.fn.fnameescape(selected_path))
+        end
         jump_to_rg_state(result.state, selected_path)
+      elseif stat and stat.type == "file" then
+        if not M.open_project_file(selected_path) then
+          vim.cmd.edit(vim.fn.fnameescape(selected_path))
+        end
+      elseif stat and stat.type == "directory" then
+        if not M.open_project_path(selected_path) then
+          browse_project_files(selected_path)
+        end
       else
-        M.open_project_path(selected_path)
+        vim.notify("Selected path does not exist: " .. selected_path, vim.log.levels.WARN)
       end
     end),
   })
