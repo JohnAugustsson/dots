@@ -4,9 +4,12 @@ from __future__ import annotations
 import argparse
 import re
 import os
+import signal
 import subprocess
 import sys
 from pathlib import Path
+
+signal.signal(signal.SIGPIPE, signal.SIG_DFL)
 
 ROOTS_FILE = Path.home() / '.config/project-root-picker/project-roots'
 EXCLUDES = ['.git', 'node_modules', '.svelte-kit', 'dist', 'build']
@@ -51,7 +54,7 @@ def normalize(path: Path) -> Path:
         return path.expanduser().absolute()
 
 
-def load_roots() -> list[Path]:
+def load_roots(sort_by_depth: bool = True) -> list[Path]:
     if not ROOTS_FILE.exists():
         return []
     roots: list[Path] = []
@@ -63,7 +66,8 @@ def load_roots() -> list[Path]:
             path = normalize(Path(p))
             if path.is_dir():
                 roots.append(path)
-    roots.sort(key=lambda p: len(str(p)), reverse=True)
+    if sort_by_depth:
+        roots.sort(key=lambda p: len(str(p)), reverse=True)
     return roots
 
 
@@ -186,6 +190,99 @@ def select_roots(args: argparse.Namespace) -> list[Path]:
     return saved_roots
 
 
+PROJECT_STREAM_WIDTH = 18
+
+
+def display_width_for_project(project_width: int) -> int:
+    columns = terminal_columns()
+    list_columns = max(20, int(columns * 0.45))
+    return max(20, list_columns - project_width - 8)
+
+
+def format_row(project: str, rel_path: str, path: str, kind: str, ansi: bool = True, project_width: int | None = None) -> str:
+    width = project_width if project_width is not None else len(project)
+    display_path = left_truncate(rel_path, display_width_for_project(width))
+    if not ansi:
+        return f"{project}\t{rel_path}\t{path}\t{kind}"
+
+    color = COLORS[kind]
+    icon = ICONS[kind]
+    project_display = left_truncate(project, width)
+    if kind == 'file':
+        parent, sep, name = display_path.rpartition('/')
+        display_colored = (
+            f"{COLORS['dir']}{parent}{sep}{COLORS['reset']}"
+            f"{COLORS['file']}{name}{COLORS['reset']}"
+        ) if sep else f"{COLORS['file']}{display_path}{COLORS['reset']}"
+    else:
+        display_colored = f"{color}{display_path}{COLORS['reset']}"
+
+    return (
+        f"{COLORS['project']}{project_display:<{width}}{COLORS['reset']}  "
+        f"{color}{icon}{COLORS['reset']}  "
+        f"{display_colored}\t{path}"
+    )
+
+
+def fd_cmd(root: Path) -> list[str]:
+    cmd = ['fd', '--hidden', '--follow']
+    for ex in EXCLUDES:
+        cmd.extend(['--exclude', ex])
+    cmd.extend(['.', str(root)])
+    return cmd
+
+
+def emit_stream_row(project: str, rel_path: str, path: str, kind: str, seen: set[str]) -> None:
+    if path in seen:
+        return
+    seen.add(path)
+    print(format_row(project, rel_path, path, kind, ansi=True, project_width=PROJECT_STREAM_WIDTH), flush=True)
+
+
+def stream_rows(roots: list[Path]) -> int:
+    seen: set[str] = set()
+    for root in roots:
+        root = normalize(root)
+        root_str = str(root)
+        root_name = root.name or root_str
+        root_re = re.compile(r'^' + re.escape(root_str) + r'/?')
+        emit_stream_row(root_name, './', root_str, 'root', seen)
+
+        try:
+            proc = subprocess.Popen(fd_cmd(root), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+        except OSError:
+            continue
+
+        assert proc.stdout is not None
+        for raw in proc.stdout:
+            raw = raw.strip()
+            if not raw:
+                continue
+            entry = normalize(Path(raw))
+            entry_str = str(entry)
+            if entry_str in seen:
+                continue
+
+            rel_path = root_re.sub('', entry_str)
+            if entry.is_dir():
+                rel_path += '/'
+                kind = 'dir'
+                label_dir = entry
+            else:
+                kind = 'file'
+                label_dir = entry.parent
+
+            project_name, project_dir = detect_project(label_dir, root, root_name)
+            if project_dir is not None and entry == project_dir:
+                rel_path = './'
+                kind = 'root'
+
+            emit_stream_row(project_name, rel_path, entry_str, kind, seen)
+
+        proc.wait()
+    return 0
+
+
 def build_grep_rows(roots: list[Path], query: str) -> list[tuple[str, str, str, str]]:
     if not query.strip():
         return []
@@ -248,35 +345,7 @@ def build_grep_rows(roots: list[Path], query: str) -> list[tuple[str, str, str, 
 
 def format_rows(rows: list[tuple[str, str, str, str]], ansi: bool = True) -> str:
     width = max((len(project) for project, *_ in rows), default=0)
-    columns = terminal_columns()
-    # fzf shows the preview on the right, so the visible list is roughly half the
-    # terminal. Keep the absolute path in field 2 untouched; only shorten field 1.
-    # Bias truncation to the left so the filename / deepest directory remains visible.
-    list_columns = max(20, int(columns * 0.45))
-    rel_width = max(20, list_columns - width - 8)
-    lines: list[str] = []
-    for project, rel_path, path, kind in rows:
-        display_path = left_truncate(rel_path, rel_width)
-        if ansi:
-            color = COLORS[kind]
-            icon = ICONS[kind]
-            if kind == 'file':
-                parent, sep, name = display_path.rpartition('/')
-                display_colored = (
-                    f"{COLORS['dir']}{parent}{sep}{COLORS['reset']}"
-                    f"{COLORS['file']}{name}{COLORS['reset']}"
-                ) if sep else f"{COLORS['file']}{display_path}{COLORS['reset']}"
-            else:
-                display_colored = f"{color}{display_path}{COLORS['reset']}"
-            line = (
-                f"{COLORS['project']}{project:<{width}}{COLORS['reset']}  "
-                f"{color}{icon}{COLORS['reset']}  "
-                f"{display_colored}\t{path}"
-            )
-        else:
-            line = f"{project}\t{rel_path}\t{path}\t{kind}"
-        lines.append(line)
-    return '\n'.join(lines)
+    return '\n'.join(format_row(project, rel_path, path, kind, ansi=ansi, project_width=width) for project, rel_path, path, kind in rows)
 
 
 def parse_args() -> argparse.Namespace:
@@ -286,11 +355,20 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--scope', choices=('roots', 'cwd', 'project', 'home', 'global'), default='roots')
     parser.add_argument('--start', default='.')
     parser.add_argument('--grep')
+    parser.add_argument('--stream', action='store_true')
     return parser.parse_args()
 
 
 def main() -> int:
     args = parse_args()
+    if args.stream:
+        if args.scope != 'roots' or args.plain or args.projects_only or args.grep is not None:
+            return 2
+        roots = [root for root in load_roots(sort_by_depth=False) if root.is_dir()]
+        if not roots:
+            return 1
+        return stream_rows(roots)
+
     roots = select_roots(args)
     roots = [root for root in roots if root.is_dir()]
     if not roots:

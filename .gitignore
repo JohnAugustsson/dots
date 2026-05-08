@@ -1,5 +1,7 @@
 lazy-lock.json
 **project-roots
+__pycache__/
+*.py[cod]
 *.log
 .env
 .env.*
