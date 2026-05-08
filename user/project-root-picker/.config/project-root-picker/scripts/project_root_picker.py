@@ -47,6 +47,12 @@ def left_truncate(text: str, max_width: int) -> str:
     return '…' + text[-(max_width - 1):]
 
 
+def parse_search_query(query: str) -> tuple[str, bool]:
+    if query.startswith('re:'):
+        return query[3:], True
+    return query, False
+
+
 def normalize(path: Path) -> Path:
     try:
         return path.expanduser().resolve()
@@ -284,6 +290,7 @@ def stream_rows(roots: list[Path]) -> int:
 
 
 def rg_count_cmd(roots: list[Path], query: str) -> list[str]:
+    pattern, is_regex = parse_search_query(query)
     cmd = [
         'rg',
         '--count-matches',
@@ -292,9 +299,11 @@ def rg_count_cmd(roots: list[Path], query: str) -> list[str]:
         '--hidden',
         '--follow',
     ]
+    if not is_regex:
+        cmd.append('--fixed-strings')
     for ex in EXCLUDES:
         cmd.extend(['--glob', f'!{ex}/**', '--glob', f'!**/{ex}/**'])
-    cmd.append(query)
+    cmd.append(pattern)
     cmd.extend(str(root) for root in roots)
     return cmd
 
@@ -335,6 +344,10 @@ def build_grep_rows(roots: list[Path], query: str) -> list[tuple[str, str, str, 
     if not query.strip():
         return []
 
+    pattern, is_regex = parse_search_query(query)
+    if not pattern.strip():
+        return []
+
     cmd = [
         'rg',
         '--column',
@@ -345,9 +358,11 @@ def build_grep_rows(roots: list[Path], query: str) -> list[tuple[str, str, str, 
         '--hidden',
         '--follow',
     ]
+    if not is_regex:
+        cmd.append('--fixed-strings')
     for ex in EXCLUDES:
         cmd.extend(['--glob', f'!{ex}/**', '--glob', f'!**/{ex}/**'])
-    cmd.append(query)
+    cmd.append(pattern)
     cmd.extend(str(root) for root in roots)
 
     try:

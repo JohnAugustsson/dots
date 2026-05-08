@@ -14,12 +14,21 @@ BG_OFF = '\033[49m'
 ANSI_RE = re.compile(r'\x1b\[[0-?]*[ -/]*[@-~]')
 
 
+def parse_search_query(query: str) -> tuple[str, bool]:
+    if query.startswith('re:'):
+        return query[3:], True
+    return query, False
+
+
 def compile_pattern(query: str) -> re.Pattern[str]:
-    flags = 0 if any(ch.isupper() for ch in query) else re.IGNORECASE
+    pattern, is_regex = parse_search_query(query)
+    flags = 0 if any(ch.isupper() for ch in pattern) else re.IGNORECASE
+    if not is_regex:
+        return re.compile(re.escape(pattern), flags)
     try:
-        return re.compile(query, flags)
+        return re.compile(pattern, flags)
     except re.error:
-        return re.compile(re.escape(query), flags)
+        return re.compile(re.escape(pattern), flags)
 
 
 def load_matches(path: Path, query: str) -> tuple[list[str], list[tuple[int, int, int]]]:
