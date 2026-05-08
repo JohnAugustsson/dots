@@ -21,7 +21,14 @@ EOF
 
 resolve_dir() {
   local target="$1"
-  realpath -m -- "$target" 2>/dev/null
+  # Absolute + normalized, but do not dereference symlink path components.
+  # realpath/readlink -f would turn ~/links/project into /mnt/original/project,
+  # which makes workstation-local symlink roots impossible to keep.
+  if [[ "$target" = /* ]]; then
+    realpath -sm -- "$target" 2>/dev/null
+  else
+    realpath -sm -- "$PWD/$target" 2>/dev/null
+  fi
 }
 
 dedupe_file() {
