@@ -82,8 +82,10 @@ while true; do
       printf 'path\t%s\n' "$selected_path"
       printf 'row\t%s\n' "$selected"
     } > "$out_file"
+    cp "$out_file" /tmp/project-root-picker-last-result 2>/dev/null || true
   else
     : > "$out_file"
+    cp "$out_file" /tmp/project-root-picker-last-result 2>/dev/null || true
     rm -f "$state_file"
   fi
   exit 0

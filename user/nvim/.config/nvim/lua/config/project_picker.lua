@@ -935,11 +935,16 @@ local function pick_entries_fzf(scope, title)
       end
 
       local result = parse_fzf_output(out_file)
+      local debug_lines = vim.fn.filereadable(out_file) == 1 and vim.fn.readfile(out_file) or {}
       vim.fn.delete(out_file)
       local selected_path = result.path or path_from_row(result.row)
       if not selected_path or selected_path == "" then
+        if #debug_lines > 0 then
+          vim.notify("Project picker returned no path. Output: " .. table.concat(debug_lines, " | "), vim.log.levels.WARN)
+        end
         return
       end
+      selected_path = vim.trim(selected_path)
 
       local stat = uv.fs_stat(selected_path)
       if result.mode == "rg" then
