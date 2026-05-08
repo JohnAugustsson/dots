@@ -23,12 +23,6 @@ return {
       manual_mode = false,
       detection_methods = { "lsp", "pattern" },
       patterns = {
-        ".git",
-        ".jj",
-        "package.json",
-        "pyproject.toml",
-        "Cargo.toml",
-        "Makefile",
         ".project-root",
       },
       exclude_dirs = {
