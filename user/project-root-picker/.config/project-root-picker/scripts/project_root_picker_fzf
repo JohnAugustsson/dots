@@ -37,7 +37,7 @@ while true; do
 
   if [[ "$mode" == "path" ]]; then
     selected="$(
-      path_rows |
+      { path_rows || true; } |
         fzf --delimiter=$'\t' --with-nth=1 --nth=1 --ansi --tiebreak=index \
           --prompt='path> ' \
           --bind 'ctrl-z:ignore' \
