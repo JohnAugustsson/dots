@@ -3,6 +3,7 @@ from __future__ import annotations
 
 import argparse
 import os
+import signal
 import subprocess
 import sys
 from pathlib import Path
@@ -15,6 +16,8 @@ COLORS = {
     'dir': '\033[38;2;122;132;163m',
     'file': '\033[38;2;222;195;196m',
 }
+signal.signal(signal.SIGPIPE, signal.SIG_DFL)
+
 ICONS = {
     'root': '',
     'dir': '',
@@ -51,6 +54,7 @@ def color_file_path(path: str) -> str:
     if not sep:
         return f"{COLORS['file']}{path}{COLORS['reset']}"
     return f"{COLORS['dir']}{parent}{sep}{COLORS['reset']}{COLORS['file']}{name}{COLORS['reset']}"
+
 
 
 
