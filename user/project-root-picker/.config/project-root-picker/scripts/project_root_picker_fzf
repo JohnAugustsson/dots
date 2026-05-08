@@ -1,0 +1,88 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+scope="${1:-roots}"
+start="${2:-$PWD}"
+out_file="${3:?missing output file}"
+files_only="${4:-all}"
+
+scripts="$HOME/.config/project-root-picker/scripts"
+entries="$scripts/project_root_picker_entries.py"
+preview="$scripts/project_root_picker_preview.py"
+nav="$scripts/project_root_picker_match_nav.py"
+state_file="$(mktemp -t project-root-picker-rg.XXXXXX)"
+mode="path"
+
+cleanup() {
+  :
+}
+trap cleanup EXIT
+
+path_rows() {
+  if [[ "$files_only" == "files" ]]; then
+    "$entries" path "$scope" "$start" | while IFS= read -r line; do
+      path="${line#*$'\t'}"
+      [[ -f "$path" ]] && printf '%s\n' "$line"
+    done
+  else
+    "$entries" path "$scope" "$start"
+  fi
+}
+
+while true; do
+  picker_preview="$preview auto {q} '$state_file' {2}"
+  nav_next="$nav '$state_file' 1 {q} {2}"
+  nav_prev="$nav '$state_file' -1 {q} {2}"
+  rg_reload="$entries grep $scope '$start' {q} 2>/dev/null || true"
+
+  if [[ "$mode" == "path" ]]; then
+    selected="$(
+      path_rows |
+        fzf --delimiter=$'\t' --with-nth=1 --nth=1 --ansi --tiebreak=index \
+          --prompt='path> ' \
+          --bind 'ctrl-z:ignore' \
+          --bind 'ctrl-s:become(printf __PROJECT_PICKER_RG__)' \
+          --preview-window 'up,60%,border-bottom' \
+          --preview "$picker_preview"
+    )" || selected=""
+  else
+    selected="$(
+      printf '' |
+        fzf --delimiter=$'\t' --with-nth=1 --nth=1 --ansi --tiebreak=index \
+          --disabled \
+          --prompt='rg> ' \
+          --bind 'ctrl-z:ignore' \
+          --bind "change:reload($rg_reload)" \
+          --bind 'ctrl-s:become(printf __PROJECT_PICKER_PATH__)' \
+          --bind "ctrl-j:execute-silent($nav_next)+refresh-preview" \
+          --bind "ctrl-l:execute-silent($nav_next)+refresh-preview" \
+          --bind "ctrl-k:execute-silent($nav_prev)+refresh-preview" \
+          --bind "ctrl-h:execute-silent($nav_prev)+refresh-preview" \
+          --preview-window 'up,60%,border-bottom' \
+          --preview "$picker_preview"
+    )" || selected=""
+  fi
+
+  case "$selected" in
+    __PROJECT_PICKER_RG__)
+      mode="rg"
+      continue
+      ;;
+    __PROJECT_PICKER_PATH__)
+      mode="path"
+      continue
+      ;;
+  esac
+
+  if [[ -n "$selected" ]]; then
+    {
+      printf 'mode\t%s\n' "$mode"
+      printf 'state\t%s\n' "$state_file"
+      printf 'row\t%s\n' "$selected"
+    } > "$out_file"
+  else
+    : > "$out_file"
+    rm -f "$state_file"
+  fi
+  exit 0
+done

@@ -852,9 +852,113 @@ end
 
 
 
+local function parse_fzf_output(path)
+  local result = { mode = nil, state = nil, row = nil }
+  if vim.fn.filereadable(path) == 0 then
+    return result
+  end
+  for _, line in ipairs(vim.fn.readfile(path)) do
+    local key, value = line:match("^([^\t]+)\t(.*)$")
+    if key then
+      result[key] = value
+    end
+  end
+  return result
+end
+
+local function path_from_row(row)
+  if not row or row == "" then
+    return nil
+  end
+  return row:match("^[^\t]*\t(.+)$")
+end
+
+local function jump_to_rg_state(state_file, selected_path)
+  if not state_file or state_file == "" or vim.fn.filereadable(state_file) == 0 then
+    return
+  end
+
+  local raw = vim.fn.readfile(state_file)[1]
+  if not raw then
+    return
+  end
+
+  local state_path, query = raw:match("^([^\t]*)\t([^\t]*)\t")
+  if not state_path or state_path ~= selected_path or not query or query == "" then
+    return
+  end
+
+  local helper = vim.fn.expand("~/.config/project-root-picker/scripts/project_root_picker_match.py")
+  vim.system({ helper, "current", "--state", state_file, "--query", query, "--path", selected_path }, { text = true }, vim.schedule_wrap(function(result)
+    vim.fn.delete(state_file)
+    local parts = vim.split(vim.trim(result.stdout or ""), "\t")
+    local line = tonumber(parts[1])
+    local col = tonumber(parts[2])
+    if line and col then
+      pcall(vim.api.nvim_win_set_cursor, 0, { line, math.max(col - 1, 0) })
+      pcall(vim.cmd, "normal! zz")
+    end
+  end))
+end
+
+local function pick_entries_fzf(scope, title)
+  local runner = vim.fn.expand("~/.config/project-root-picker/scripts/project_root_picker_fzf")
+  if vim.fn.executable(runner) == 0 or vim.fn.executable("fzf") == 0 then
+    return false
+  end
+
+  local out_file = vim.fn.tempname()
+  local buf = vim.api.nvim_create_buf(false, true)
+  local width = math.floor(vim.o.columns * 0.96)
+  local height = math.floor(vim.o.lines * 0.9)
+  local row = math.floor((vim.o.lines - height) / 2)
+  local col = math.floor((vim.o.columns - width) / 2)
+  local win = vim.api.nvim_open_win(buf, true, {
+    relative = "editor",
+    row = row,
+    col = col,
+    width = width,
+    height = height,
+    style = "minimal",
+    border = "rounded",
+    title = title or "Project Search",
+  })
+
+  local files_only = scope == "project" and "files" or "all"
+  vim.fn.termopen({ runner, scope, vim.fn.getcwd(), out_file, files_only }, {
+    on_exit = vim.schedule_wrap(function()
+      if vim.api.nvim_win_is_valid(win) then
+        vim.api.nvim_win_close(win, true)
+      end
+      if vim.api.nvim_buf_is_valid(buf) then
+        vim.api.nvim_buf_delete(buf, { force = true })
+      end
+
+      local result = parse_fzf_output(out_file)
+      vim.fn.delete(out_file)
+      local selected_path = path_from_row(result.row)
+      if not selected_path or selected_path == "" then
+        return
+      end
+
+      if result.mode == "rg" then
+        M.open_project_file(selected_path)
+        jump_to_rg_state(result.state, selected_path)
+      else
+        M.open_project_path(selected_path)
+      end
+    end),
+  })
+  vim.cmd.startinsert()
+  return true
+end
+
 function M.pick_entries(scope, title)
   scope = scope or "roots"
   title = title or "Project Search"
+  if pick_entries_fzf(scope, title) then
+    return
+  end
   if pick_entries_telescope(scope, title) then
     return
   end
