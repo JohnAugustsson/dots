@@ -115,7 +115,18 @@ def stream_path_scope(scope: str, start: str) -> int:
 def grep_scope(scope: str, start: str, query: str) -> int:
     if not query:
         return 0
-    return subprocess.call([str(HELPER), '--scope', scope, '--start', start, '--grep', query], stderr=subprocess.DEVNULL)
+    proc = subprocess.Popen(
+        [str(HELPER), '--scope', scope, '--start', start, '--grep', query, '--grep-stream'],
+        stdout=subprocess.PIPE,
+        stderr=subprocess.DEVNULL,
+        text=True,
+    )
+    assert proc.stdout is not None
+    for raw in proc.stdout:
+        parts = raw.rstrip('\n').split('\t', 1)
+        if len(parts) == 2:
+            print(parts[1], flush=True)
+    return proc.wait()
 
 
 def parse_args() -> argparse.Namespace:

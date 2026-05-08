@@ -195,7 +195,7 @@ PROJECT_STREAM_WIDTH = 18
 
 def display_width_for_project(project_width: int) -> int:
     columns = terminal_columns()
-    list_columns = max(20, int(columns * 0.45))
+    list_columns = max(20, int(columns * 0.95))
     return max(20, list_columns - project_width - 8)
 
 
@@ -283,6 +283,54 @@ def stream_rows(roots: list[Path]) -> int:
     return 0
 
 
+def rg_count_cmd(roots: list[Path], query: str) -> list[str]:
+    cmd = [
+        'rg',
+        '--count-matches',
+        '--color=never',
+        '--smart-case',
+        '--hidden',
+        '--follow',
+    ]
+    for ex in EXCLUDES:
+        cmd.extend(['--glob', f'!{ex}/**', '--glob', f'!**/{ex}/**'])
+    cmd.append(query)
+    cmd.extend(str(root) for root in roots)
+    return cmd
+
+
+def stream_grep_rows(roots: list[Path], query: str) -> int:
+    if not query.strip():
+        return 0
+
+    try:
+        proc = subprocess.Popen(rg_count_cmd(roots, query), stdout=subprocess.PIPE, stderr=subprocess.DEVNULL, text=True)
+    except OSError:
+        return 1
+
+    assert proc.stdout is not None
+    for raw in proc.stdout:
+        raw = raw.rstrip('\n')
+        if not raw:
+            continue
+        path_s, sep, count_s = raw.rpartition(':')
+        if not sep or not count_s.isdigit():
+            continue
+        path = normalize(Path(path_s))
+        count = int(count_s)
+        root = next((root for root in roots if path_is_inside(path, root)), path.parent)
+        try:
+            rel = str(path.relative_to(root))
+        except ValueError:
+            rel = str(path)
+        project_name, _ = detect_project(path.parent, root, root.name or str(root))
+        line = format_row(project_name, rel, str(path), 'file', ansi=True, project_width=PROJECT_STREAM_WIDTH)
+        print(f"{count}\t{line}", flush=True)
+
+    proc.wait()
+    return 0
+
+
 def build_grep_rows(roots: list[Path], query: str) -> list[tuple[str, str, str, str]]:
     if not query.strip():
         return []
@@ -355,6 +403,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument('--scope', choices=('roots', 'cwd', 'project', 'home', 'global'), default='roots')
     parser.add_argument('--start', default='.')
     parser.add_argument('--grep')
+    parser.add_argument('--grep-stream', action='store_true')
     parser.add_argument('--stream', action='store_true')
     return parser.parse_args()
 
@@ -362,7 +411,7 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     if args.stream:
-        if args.scope != 'roots' or args.plain or args.projects_only or args.grep is not None:
+        if args.scope != 'roots' or args.plain or args.projects_only or args.grep is not None or args.grep_stream:
             return 2
         roots = [root for root in load_roots(sort_by_depth=False) if root.is_dir()]
         if not roots:
@@ -373,6 +422,12 @@ def main() -> int:
     roots = [root for root in roots if root.is_dir()]
     if not roots:
         return 1
+
+    if args.grep_stream:
+        if args.plain or args.projects_only or args.grep is None:
+            return 2
+        return stream_grep_rows(roots, args.grep)
+
     rows = build_grep_rows(roots, args.grep) if args.grep is not None else build_project_rows(roots) if args.projects_only else build_rows(roots)
     sys.stdout.write(format_rows(rows, ansi=not args.plain))
     if rows:

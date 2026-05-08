@@ -9,6 +9,7 @@ from pathlib import Path
 RESET = '\033[0m'
 HEADER = '\033[1;38;2;240;221;222m'
 MATCH_BG = '\033[30;48;2;240;221;222m'
+ACTIVE_MATCH_BG = '\033[30;48;2;214;144;152m'
 BG_OFF = '\033[49m'
 ANSI_RE = re.compile(r'\x1b\[[0-?]*[ -/]*[@-~]')
 
@@ -78,7 +79,7 @@ def visible_spans_to_ansi_indexes(ansi_line: str) -> tuple[str, list[int]]:
     return ''.join(visible), positions
 
 
-def add_match_background(ansi_line: str, query: str) -> str:
+def add_match_background(ansi_line: str, query: str, active_span: tuple[int, int] | None = None) -> str:
     if not query:
         return ansi_line
     visible, positions = visible_spans_to_ansi_indexes(ansi_line)
@@ -90,7 +91,8 @@ def add_match_background(ansi_line: str, query: str) -> str:
     for match in pat.finditer(visible):
         if match.start() == match.end():
             continue
-        inserts.append((positions[match.start()], MATCH_BG))
+        color = ACTIVE_MATCH_BG if active_span and match.span() == active_span else MATCH_BG
+        inserts.append((positions[match.start()], color))
         inserts.append((positions[match.end()], BG_OFF))
     if not inserts:
         return ansi_line
@@ -137,14 +139,15 @@ def preview(args: argparse.Namespace) -> int:
         current = 1
     write_state(Path(args.state), path, query, current)
 
-    active_line, _, _ = matches[current - 1]
+    active_line, active_start, active_end = matches[current - 1]
     start = max(1, active_line - args.context)
     end = min(len(lines), active_line + args.context)
 
     print(f'{HEADER}match {current}/{len(matches)}  line {active_line}  {path}{RESET}')
     print()
-    for line in bat_lines(path, start, end):
-        print(add_match_background(line, query))
+    for line_no, line in zip(range(start, end + 1), bat_lines(path, start, end)):
+        active_span = (active_start, active_end) if line_no == active_line else None
+        print(add_match_background(line, query, active_span))
     return 0
 
 
@@ -166,6 +169,21 @@ def nav(args: argparse.Namespace) -> int:
     return 0
 
 
+def current(args: argparse.Namespace) -> int:
+    path = Path(args.path)
+    query = args.query or ''
+    _, matches = load_matches(path, query)
+    if not matches:
+        return 1
+
+    idx = read_state(Path(args.state), path, query)
+    if idx < 1 or idx > len(matches):
+        idx = 1
+    line, start, end = matches[idx - 1]
+    print(f'{line}\t{start + 1}\t{end}\t{idx}\t{len(matches)}')
+    return 0
+
+
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     sub = parser.add_subparsers(dest='cmd', required=True)
@@ -183,6 +201,12 @@ def parse_args() -> argparse.Namespace:
     p_nav.add_argument('--path', required=True)
     p_nav.add_argument('--delta', type=int, required=True)
     p_nav.set_defaults(func=nav)
+
+    p_current = sub.add_parser('current')
+    p_current.add_argument('--state', required=True)
+    p_current.add_argument('--query', required=True)
+    p_current.add_argument('--path', required=True)
+    p_current.set_defaults(func=current)
 
     return parser.parse_args()
 

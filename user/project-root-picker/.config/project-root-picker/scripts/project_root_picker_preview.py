@@ -12,7 +12,7 @@ MATCH_HELPER = Path.home() / '.config/project-root-picker/scripts/project_root_p
 
 def extract_path(row: str) -> str:
     parts = row.split('\t')
-    return parts[1] if len(parts) >= 2 else ''
+    return parts[1] if len(parts) >= 2 else row
 
 
 def run(cmd: list[str]) -> int:
