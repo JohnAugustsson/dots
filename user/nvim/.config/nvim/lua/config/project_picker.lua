@@ -936,7 +936,7 @@ local function pick_entries_fzf(scope, title)
 
       local result = parse_fzf_output(out_file)
       vim.fn.delete(out_file)
-      local selected_path = path_from_row(result.row)
+      local selected_path = result.path or path_from_row(result.row)
       if not selected_path or selected_path == "" then
         return
       end
