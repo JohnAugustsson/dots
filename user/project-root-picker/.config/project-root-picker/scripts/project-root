@@ -1,0 +1,186 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+config_dir="$HOME/.config/project-root-picker"
+roots_file="$config_dir/project-roots"
+helper="$config_dir/scripts/project_root_picker.py"
+
+usage() {
+  cat <<'EOF'
+project-root — manage root directories used by your fzf path picker
+
+Usage:
+  project-root             Add current directory
+  project-root PATH        Add PATH
+  project-root -rm         Remove current directory
+  project-root -rm PATH    Remove PATH
+  project-root -l          List saved root directories and discovered projects
+  project-root -c          Remove missing saved roots
+  project-root -h          Show this help
+EOF
+}
+
+resolve_dir() {
+  local target="$1"
+  realpath -m -- "$target" 2>/dev/null
+}
+
+dedupe_file() {
+  local tmp
+  tmp="$(mktemp)"
+  awk 'NF && !seen[$0]++' "$roots_file" > "$tmp"
+  mv "$tmp" "$roots_file"
+}
+
+mkdir -p "$config_dir"
+touch "$roots_file"
+
+mode="add"
+target=""
+
+case "$#" in
+  0)
+    target="$PWD"
+    ;;
+  1)
+    case "$1" in
+      -rm)
+        mode="remove"
+        target="$PWD"
+        ;;
+      -l|--list)
+        mode="list"
+        ;;
+      -c|--clean)
+        mode="clean"
+        ;;
+      -h|--help)
+        mode="help"
+        ;;
+      *)
+        target="$1"
+        ;;
+    esac
+    ;;
+  2)
+    if [[ "$1" == "-rm" ]]; then
+      mode="remove"
+      target="$2"
+    else
+      echo "usage: project-root [-rm PATH] [PATH] [-l|--list] [-c|--clean]" >&2
+      exit 1
+    fi
+    ;;
+  *)
+    echo "usage: project-root [-rm PATH] [PATH] [-l|--list] [-c|--clean]" >&2
+    exit 1
+    ;;
+esac
+
+case "$mode" in
+  help)
+    usage
+    exit 0
+    ;;
+
+  list)
+    if [[ ! -s "$roots_file" ]]; then
+      echo "No root directories saved."
+      exit 0
+    fi
+
+    project_rows=""
+    if [[ -x "$helper" ]]; then
+      project_rows="$($helper --projects-only --plain 2>/dev/null || true)"
+    fi
+
+    while IFS= read -r dir; do
+      [[ -n "$dir" ]] || continue
+
+      root="$(resolve_dir "$dir")"
+      if [[ -z "$root" || ! -d "$root" ]]; then
+        echo "$dir [missing]"
+        continue
+      fi
+
+      echo "$root"
+
+      printf '%s\n' "$project_rows" \
+        | awk -F '\t' -v root="$root" '
+            $3 != root && index($3, root "/") == 1 {
+              rel = substr($3, length(root) + 2)
+              if (rel == $1) print rel "|" rel
+              else print rel "|" rel " (" $1 ")"
+            }
+          ' \
+        | awk -F '|' '
+            NF {
+              rows[++n] = $2
+            }
+            END {
+              for (i = 1; i <= n; i++) {
+                connector = (i == n) ? "└──" : "├──"
+                print "  " connector " " rows[i]
+              }
+            }
+          '
+    done < "$roots_file"
+
+    exit 0
+    ;;
+
+  clean)
+    tmp="$(mktemp)"
+    removed="$(mktemp)"
+
+    while IFS= read -r dir; do
+      [[ -n "$dir" ]] || continue
+      if [[ -d "$dir" ]]; then
+        resolve_dir "$dir"
+      else
+        echo "$dir" >> "$removed"
+      fi
+    done < "$roots_file" | awk 'NF && !seen[$0]++' > "$tmp"
+
+    mv "$tmp" "$roots_file"
+
+    if [[ ! -s "$removed" ]]; then
+      echo "No missing root directories to clean."
+    else
+      echo "Removed missing root directories:"
+      sed 's/^/- /' "$removed"
+    fi
+    rm -f "$removed"
+    exit 0
+    ;;
+esac
+
+dir="$(resolve_dir "$target")"
+if [[ -z "$dir" || ! -d "$dir" ]]; then
+  echo "project-root: not an existing directory: $target" >&2
+  exit 1
+fi
+
+case "$mode" in
+  add)
+    if grep -Fxq -- "$dir" "$roots_file"; then
+      echo "Already tracked: $dir"
+      exit 0
+    fi
+
+    printf '%s\n' "$dir" >> "$roots_file"
+    dedupe_file
+    echo "Added root directory: $dir"
+    ;;
+
+  remove)
+    if grep -Fxq -- "$dir" "$roots_file"; then
+      tmp="$(mktemp)"
+      grep -Fxv -- "$dir" "$roots_file" > "$tmp" || true
+      mv "$tmp" "$roots_file"
+      echo "Removed root directory: $dir"
+    else
+      echo "Root directory was not tracked: $dir"
+    fi
+    ;;
+esac
