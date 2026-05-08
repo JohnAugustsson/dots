@@ -303,18 +303,27 @@ local function load_saved_roots()
   return roots
 end
 
-local function is_inside_saved_root(path)
+local function saved_root_for(path)
   for _, root in ipairs(load_saved_roots()) do
     if is_inside(path, root) then
-      return true
+      return root
     end
   end
-  return false
+  return nil
+end
+
+local function is_inside_saved_root(path)
+  return saved_root_for(path) ~= nil
 end
 
 local function find_project_root(start_path)
   local path = normalize_path(start_path)
-  if not path or not is_inside_saved_root(path) then
+  if not path then
+    return nil
+  end
+
+  local saved_root = saved_root_for(path)
+  if not saved_root then
     return nil
   end
 
@@ -327,6 +336,9 @@ local function find_project_root(start_path)
         return normalize_path(dir)
       end
     end
+    if dir == saved_root then
+      break
+    end
     local parent = vim.fn.fnamemodify(dir, ":h")
     if parent == dir then
       break
@@ -334,7 +346,7 @@ local function find_project_root(start_path)
     dir = parent
   end
 
-  return nil
+  return saved_root
 end
 
 local function current_project_root()

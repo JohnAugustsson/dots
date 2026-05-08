@@ -411,9 +411,12 @@ def parse_args() -> argparse.Namespace:
 def main() -> int:
     args = parse_args()
     if args.stream:
-        if args.scope != 'roots' or args.plain or args.projects_only or args.grep is not None or args.grep_stream:
+        if args.scope not in ('roots', 'project') or args.plain or args.projects_only or args.grep is not None or args.grep_stream:
             return 2
-        roots = [root for root in load_roots(sort_by_depth=False) if root.is_dir()]
+        if args.scope == 'roots':
+            roots = [root for root in load_roots(sort_by_depth=False) if root.is_dir()]
+        else:
+            roots = [root for root in select_roots(args) if root.is_dir()]
         if not roots:
             return 1
         return stream_rows(roots)

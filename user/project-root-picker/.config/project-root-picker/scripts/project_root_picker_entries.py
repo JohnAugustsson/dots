@@ -104,6 +104,8 @@ def stream_path_scope(scope: str, start: str) -> int:
         print_root('~/', root)
     elif scope == 'roots':
         return subprocess.call([str(HELPER), '--scope', 'roots', '--stream'], stderr=subprocess.DEVNULL)
+    elif scope == 'project':
+        return subprocess.call([str(HELPER), '--scope', 'project', '--start', start, '--stream'], stderr=subprocess.DEVNULL)
     else:
         return subprocess.call([str(HELPER), '--scope', scope, '--start', start], stderr=subprocess.DEVNULL)
 
