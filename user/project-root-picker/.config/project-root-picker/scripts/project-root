@@ -3,7 +3,6 @@ set -euo pipefail
 
 config_dir="$HOME/.config/project-root-picker"
 roots_file="$config_dir/project-roots"
-helper="$config_dir/scripts/project_root_picker.py"
 
 usage() {
   cat <<'EOF'
@@ -14,7 +13,7 @@ Usage:
   project-root PATH        Add PATH
   project-root -rm         Remove current directory
   project-root -rm PATH    Remove PATH
-  project-root -l          List saved root directories and discovered projects
+  project-root -l          List saved root directories and discovered .project-root projects
   project-root -c          Remove missing saved roots
   project-root -h          Show this help
 EOF
@@ -30,6 +29,33 @@ dedupe_file() {
   tmp="$(mktemp)"
   awk 'NF && !seen[$0]++' "$roots_file" > "$tmp"
   mv "$tmp" "$roots_file"
+}
+
+list_projects_under_root() {
+  local root="$1"
+
+  command -v fd >/dev/null 2>&1 || return 0
+
+  fd --hidden --follow --type file '^\.project-root$' "$root" \
+    --exclude .git \
+    --exclude node_modules \
+    --exclude .svelte-kit \
+    --exclude dist \
+    --exclude build \
+    2>/dev/null \
+    | while IFS= read -r marker; do
+        local project_path rel project
+        project_path="$(dirname -- "$marker")"
+        [[ "$project_path" != "$root" ]] || continue
+        rel="${project_path#"$root"/}"
+        project="$(basename -- "$project_path")"
+        if [[ "$rel" == "$project" ]]; then
+          printf '%s\n' "$rel"
+        else
+          printf '%s (%s)\n' "$rel" "$project"
+        fi
+      done \
+    | awk 'NF && !seen[$0]++'
 }
 
 mkdir -p "$config_dir"
@@ -85,13 +111,9 @@ case "$mode" in
 
   list)
     if [[ ! -s "$roots_file" ]]; then
-      echo "No root directories saved."
+      echo "No root directories saved. Add one with: project-root PATH"
+      echo "Roots file: $roots_file"
       exit 0
-    fi
-
-    project_rows=""
-    if [[ -x "$helper" ]]; then
-      project_rows="$($helper --projects-only --plain 2>/dev/null || true)"
     fi
 
     while IFS= read -r dir; do
@@ -105,25 +127,15 @@ case "$mode" in
 
       echo "$root"
 
-      printf '%s\n' "$project_rows" \
-        | awk -F '\t' -v root="$root" '
-            $3 != root && index($3, root "/") == 1 {
-              rel = substr($3, length(root) + 2)
-              if (rel == $1) print rel "|" rel
-              else print rel "|" rel " (" $1 ")"
-            }
-          ' \
-        | awk -F '|' '
-            NF {
-              rows[++n] = $2
-            }
-            END {
-              for (i = 1; i <= n; i++) {
-                connector = (i == n) ? "└──" : "├──"
-                print "  " connector " " rows[i]
-              }
-            }
-          '
+      mapfile -t children < <(list_projects_under_root "$root")
+      child_count="${#children[@]}"
+      for ((i = 0; i < child_count; i++)); do
+        connector="├──"
+        if (( i == child_count - 1 )); then
+          connector="└──"
+        fi
+        echo "  $connector ${children[$i]}"
+      done
     done < "$roots_file"
 
     exit 0

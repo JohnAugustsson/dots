@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 from __future__ import annotations
 
 import argparse
@@ -51,6 +51,7 @@ def color_file_path(path: str) -> str:
     if not sep:
         return f"{COLORS['file']}{path}{COLORS['reset']}"
     return f"{COLORS['dir']}{parent}{sep}{COLORS['reset']}{COLORS['file']}{name}{COLORS['reset']}"
+
 
 
 def print_root(label: str, path: Path) -> None:
