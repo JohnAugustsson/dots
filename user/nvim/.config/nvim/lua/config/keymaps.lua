@@ -18,6 +18,6 @@ vim.keymap.set("n", "<C-d>", function()
   require("config.project_picker").pick_project_entries()
 end, { desc = "Current Project Search" })
 
-vim.keymap.set("n", "<C-p>", function()
+vim.keymap.set("n", "<C-h>", function()
   require("config.project_picker").pick_cwd_entries()
 end, { desc = "Cwd Search" })
