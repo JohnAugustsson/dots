@@ -4,10 +4,8 @@ require("config.project_picker").setup()
 
 local stash = "z"
 
-vim.keymap.set("n", "p", [["+p]], { noremap = true, silent = true })
-vim.keymap.set("n", "P", [["+P]], { noremap = true, silent = true })
-vim.keymap.set("x", "p", [["_d"+P]], { noremap = true, silent = true })
-vim.keymap.set("x", "P", [["_d"+P]], { noremap = true, silent = true })
+vim.opt.clipboard = "unnamedplus"
+
 vim.keymap.set({ "n", "x" }, "<M-p>", '"' .. stash .. "p", { noremap = true, silent = true })
 vim.keymap.set({ "n", "x" }, "<M-P>", '"' .. stash .. "P", { noremap = true, silent = true })
 
@@ -39,17 +37,14 @@ vim.on_key(function(key, typed)
   return ""
 end, swedish_bracket_ns)
 
-vim.keymap.set({ "n", "x" }, "y", [["+y]], { noremap = true, silent = true })
-vim.keymap.set("n", "Y", [["+Y]], { noremap = true, silent = true })
+vim.keymap.set({ "n", "x" }, "d", '"' .. stash .. "d", { noremap = true, silent = true, desc = "Delete To Stash Register" })
+vim.keymap.set("n", "D", '"' .. stash .. "D", { noremap = true, silent = true, desc = "Delete Line Tail To Stash Register" })
 
-vim.keymap.set({ "n", "x" }, "d", '"' .. stash .. "d", { noremap = true, silent = true })
-vim.keymap.set("n", "D", '"' .. stash .. "D", { noremap = true, silent = true })
+vim.keymap.set({ "n", "x" }, "c", '"' .. stash .. "c", { noremap = true, silent = true, desc = "Change To Stash Register" })
+vim.keymap.set("n", "C", '"' .. stash .. "C", { noremap = true, silent = true, desc = "Change Line Tail To Stash Register" })
 
-vim.keymap.set({ "n", "x" }, "c", '"' .. stash .. "c", { noremap = true, silent = true })
-vim.keymap.set("n", "C", '"' .. stash .. "C", { noremap = true, silent = true })
-
-vim.keymap.set({ "n", "x" }, "x", '"' .. stash .. "x", { noremap = true, silent = true })
-vim.keymap.set("n", "X", '"' .. stash .. "X", { noremap = true, silent = true })
+vim.keymap.set({ "n", "x" }, "x", [["_x]], { noremap = true, silent = true, desc = "Delete Char To Black Hole" })
+vim.keymap.set("n", "X", [["_X]], { noremap = true, silent = true, desc = "Delete Previous Char To Black Hole" })
 vim.keymap.set({ "n", "x" }, "s", '"' .. stash .. "s", { noremap = true, silent = true })
 vim.keymap.set("n", "S", '"' .. stash .. "S", { noremap = true, silent = true })
 

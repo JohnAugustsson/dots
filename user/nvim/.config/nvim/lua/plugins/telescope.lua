@@ -40,10 +40,38 @@ local function yank_undo_to_plus(field)
   end
 end
 
+local function yanky_put_from_plus(type, is_visual)
+  return function()
+    require("yanky").put(type, is_visual, function(state, put)
+      state.register = "+"
+      put(state)
+    end)
+  end
+end
+
 return {
   {
     "gbprod/yanky.nvim",
+    opts = function(_, opts)
+      opts.ring = opts.ring or {}
+      opts.ring.ignore_registers = { "_", "z" }
+      opts.ring.sync_with_numbered_registers = false
+    end,
     keys = {
+      {
+        "y",
+        function()
+          return require("yanky").yank({ register = "+" })
+        end,
+        mode = { "n", "x" },
+        expr = true,
+        desc = "Yank Text To System Clipboard",
+      },
+      { "Y", [=["+yy]=], desc = "Yank Line To System Clipboard" },
+      { "p", yanky_put_from_plus("p", false), mode = "n", desc = "Put Text From System Clipboard" },
+      { "P", yanky_put_from_plus("P", false), mode = "n", desc = "Put Text Before From System Clipboard" },
+      { "p", yanky_put_from_plus("p", true), mode = "x", desc = "Replace With System Clipboard" },
+      { "P", yanky_put_from_plus("P", true), mode = "x", desc = "Replace Before With System Clipboard" },
       { "<C-p>", "<Plug>(YankyPreviousEntry)", desc = "Cycle Previous Yank History Entry" },
       { "<C-n>", "<Plug>(YankyNextEntry)", desc = "Cycle Next Yank History Entry" },
     },

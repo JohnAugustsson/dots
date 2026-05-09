@@ -94,7 +94,7 @@ bind \ce exit
 bind \cf __fzf_insert_path
 bind \cg __fzf_insert_global_path
 bind \cd __fzf_insert_project_path
-bind \ch __fzf_insert_cwd_path
+bind \cb __fzf_insert_cwd_path
 
 # OpenClaw Completion
 source "/home/ja/.openclaw/completions/openclaw.fish"
