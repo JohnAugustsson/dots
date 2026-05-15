@@ -1,11 +1,5 @@
 source /usr/share/cachyos-fish-config/cachyos-config.fish
 
-# overwrite greeting
-# potentially disabling fastfetch
-#function fish_greeting
-#    echo "smth smth"
-#end
-
 function fv
     echo "stowu, stows, dots, cava, htop, minimized-wins"
 end
@@ -16,12 +10,23 @@ end
 
 function fish_prompt
     echo
+    set -l branch (git branch --show-current 2>/dev/null)
+    if test -n "$branch"
+        set -l upstream (git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null)
+        set_color yellow
+
+        if test -n "$upstream"
+            echo "($branch -> $upstream)"
+        else
+            echo "($branch)"
+        end
+    end
     set_color green
     echo -n (whoami)"@"(hostname)
     set_color normal
     echo -n " "
     set_color blue
-    echo (prompt_pwd)
+    echo ( prompt_pwd --full-length-dirs 10 )
     set_color normal
     echo -n "> "
 end
