@@ -14,7 +14,7 @@ vim.keymap.set("n", "<C-g>", function()
   require("config.project_picker").pick_home_entries()
 end, { desc = "Home Search" })
 
-vim.keymap.set("n", "<C-d>", function()
+vim.keymap.set("n", "<C-S-d>", function()
   require("config.project_picker").pick_project_entries()
 end, { desc = "Current Project Search" })
 
