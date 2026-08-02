@@ -14,3 +14,9 @@ vim.api.nvim_create_autocmd({ "FocusGained", "BufEnter", "CursorHold", "CursorHo
   pattern = "*",
   command = "checktime",
 })
+
+vim.opt.diffopt:append({
+  "algorithm:histogram",
+  "indent-heuristic",
+  "linematch:60",
+})

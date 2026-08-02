@@ -42,6 +42,7 @@ while true; do
           --prompt='path> ' \
           --bind 'ctrl-z:ignore' \
           --bind 'ctrl-s:become(printf __PROJECT_PICKER_RG__)' \
+          --preview-label="$scope" \
           --preview-window 'up,60%,border-bottom' \
           --preview "$picker_preview"
     )" || selected=""
@@ -59,19 +60,20 @@ while true; do
           --bind "ctrl-k:execute-silent($nav_prev)+refresh-preview" \
           --bind "ctrl-h:execute-silent($nav_prev)+refresh-preview" \
           --preview-window 'up,60%,border-bottom' \
+          --preview-label="$scope" \
           --preview "$picker_preview"
     )" || selected=""
   fi
 
   case "$selected" in
-    __PROJECT_PICKER_RG__)
-      mode="rg"
-      continue
-      ;;
-    __PROJECT_PICKER_PATH__)
-      mode="path"
-      continue
-      ;;
+  __PROJECT_PICKER_RG__)
+    mode="rg"
+    continue
+    ;;
+  __PROJECT_PICKER_PATH__)
+    mode="path"
+    continue
+    ;;
   esac
 
   if [[ -n "$selected" ]]; then
@@ -81,10 +83,10 @@ while true; do
       printf 'state\t%s\n' "$state_file"
       printf 'path\t%s\n' "$selected_path"
       printf 'row\t%s\n' "$selected"
-    } > "$out_file"
+    } >"$out_file"
     cp "$out_file" /tmp/project-root-picker-last-result 2>/dev/null || true
   else
-    : > "$out_file"
+    : >"$out_file"
     cp "$out_file" /tmp/project-root-picker-last-result 2>/dev/null || true
     rm -f "$state_file"
   fi

@@ -73,57 +73,193 @@ vim.opt.statuscolumn = "%{v:lnum}%s %{v:relnum}"
 -- =========================================================================
 -- MAYA LINUX NATIVE CODE SENDER
 -- =========================================================================
+local function dedent_lines(lines)
+  local tabstop = vim.bo.tabstop
+  local indent_columns = {}
+  local min_indent
+
+  for i, line in ipairs(lines) do
+    if line:find("%S") then
+      local whitespace = line:match("^[ \t]*") or ""
+      local columns = 0
+
+      for j = 1, #whitespace do
+        if whitespace:sub(j, j) == "\t" then
+          columns = columns + (tabstop - (columns % tabstop))
+        else
+          columns = columns + 1
+        end
+      end
+
+      indent_columns[i] = columns
+      min_indent = min_indent and math.min(min_indent, columns) or columns
+    end
+  end
+
+  if not min_indent or min_indent == 0 then
+    return lines
+  end
+
+  for i, line in ipairs(lines) do
+    if line:find("%S") then
+      local content = line:gsub("^[ \t]*", "", 1)
+      lines[i] = string.rep(" ", indent_columns[i] - min_indent) .. content
+    else
+      lines[i] = ""
+    end
+  end
+
+  return lines
+end
+
 local function send_to_maya(is_visual)
   local lines = {}
+
   if is_visual then
-    local v_pos = vim.fn.getpos("v")
-    local cur_pos = vim.fn.getpos(".")
-    local start_row = math.min(v_pos[2], cur_pos[2])
-    local end_row = math.max(v_pos[2], cur_pos[2])
-    lines = vim.api.nvim_buf_get_lines(0, start_row - 1, end_row, false)
+    lines = vim.fn.getregion(vim.fn.getpos("v"), vim.fn.getpos("."), {
+      type = vim.fn.mode(),
+      exclusive = false,
+    })
+
+    lines = dedent_lines(lines)
   else
     lines = vim.api.nvim_buf_get_lines(0, 0, -1, false)
   end
 
   local code = table.concat(lines, "\n")
-  if code == "" then
+
+  if code:match("^%s*$") then
     vim.notify("No code to send to Maya!", vim.log.levels.WARN)
     return
   end
 
+  -- Rest of your function remains unchanged.
+
   -- Standard Linux temp paths
   local code_path = "/tmp/nvim_maya_temp.py"
   local boot_path = "/tmp/nvim_maya_boot.py"
+  local output_path = "/tmp/nvim_maya_output.log"
 
-  -- Write the actual code file
+  -- Write the selected/full code
   local code_file = io.open(code_path, "w")
   if not code_file then
-    vim.notify("Error: Cannot write to " .. code_path, vim.log.levels.ERROR)
+    vim.notify("Cannot write to " .. code_path, vim.log.levels.ERROR)
     return
   end
+
   code_file:write(code)
   code_file:close()
 
-  -- Write the bootstrap wrapper that safely exec's the code file
+  -- Execute like an interactive Python cell:
+  --   * stdout/stderr appear in Maya and the external log
+  --   * the final bare expression is displayed using repr()
+  --   * definitions/imports remain in Maya's __main__ namespace
   local bootstrap = string.format(
-    "import __main__, traceback\n"
-      .. "try:\n"
-      .. "    exec(open(r'%s').read(), __main__.__dict__, __main__.__dict__)\n"
-      .. "except Exception:\n"
-      .. "    traceback.print_exc()\n",
-    code_path
+    [=[
+import __main__
+import ast
+import contextlib
+import sys
+import traceback
+
+
+class _NvimMayaTee:
+    def __init__(self, maya_stream, log_stream):
+        self._maya_stream = maya_stream
+        self._log_stream = log_stream
+
+    def write(self, text):
+        if not isinstance(text, str):
+            text = str(text)
+
+        self._maya_stream.write(text)
+        self._log_stream.write(text)
+        self._log_stream.flush()
+        return len(text)
+
+    def flush(self):
+        self._maya_stream.flush()
+        self._log_stream.flush()
+
+    def __getattr__(self, name):
+        return getattr(self._maya_stream, name)
+
+
+def _nvim_maya_run(code_path, output_path):
+    namespace = __main__.__dict__
+
+    # Temporary global used by the transformed final expression
+    hook_name = "__nvim_maya_displayhook_7f43c1__"
+    missing = object()
+    previous_hook = namespace.get(hook_name, missing)
+    namespace[hook_name] = sys.__displayhook__
+
+    try:
+        with open(output_path, "a", encoding="utf-8", buffering=1) as log:
+            log.write("\n--- Maya send ---\n")
+
+            stdout_tee = _NvimMayaTee(sys.stdout, log)
+            stderr_tee = _NvimMayaTee(sys.stderr, log)
+
+            with contextlib.redirect_stdout(stdout_tee), contextlib.redirect_stderr(stderr_tee):
+                try:
+                    with open(code_path, "r", encoding="utf-8") as source_file:
+                        source = source_file.read()
+
+                    tree = ast.parse(source, filename=code_path, mode="exec")
+
+                    # Turn the final bare expression into:
+                    # sys.displayhook(expression)
+                    #
+                    # This prints repr(result), suppresses None and updates "_",
+                    # matching normal interactive Python behaviour.
+                    if tree.body and isinstance(tree.body[-1], ast.Expr):
+                        last = tree.body[-1]
+
+                        replacement = ast.Expr(
+                            value=ast.Call(
+                                func=ast.Name(id=hook_name, ctx=ast.Load()),
+                                args=[last.value],
+                                keywords=[],
+                            )
+                        )
+
+                        tree.body[-1] = ast.copy_location(replacement, last)
+                        ast.fix_missing_locations(tree)
+
+                    exec(
+                        compile(tree, code_path, "exec"),
+                        namespace,
+                        namespace,
+                    )
+
+                except BaseException:
+                    traceback.print_exc()
+
+    finally:
+        if previous_hook is missing:
+            namespace.pop(hook_name, None)
+        else:
+            namespace[hook_name] = previous_hook
+
+
+_nvim_maya_run(r"%s", r"%s")
+]=],
+    code_path,
+    output_path
   )
+
   local boot_file = io.open(boot_path, "w")
   if not boot_file then
-    vim.notify("Error: Cannot write to " .. boot_path, vim.log.levels.ERROR)
+    vim.notify("Cannot write to " .. boot_path, vim.log.levels.ERROR)
     return
   end
+
   boot_file:write(bootstrap)
   boot_file:close()
 
-  -- MEL command just runs the bootstrap
+  -- Keep using the MEL command port
   local exec_cmd = string.format("python(\"exec(open(r'%s').read())\");", boot_path)
-
   -- Pure Linux: Maya is on localhost
   local host_ip = "127.0.0.1"
 
@@ -174,6 +310,6 @@ vim.keymap.set("n", "<M-E>", function()
 end, { noremap = true, desc = "Send entire file to Maya" })
 
 -- Visual mode: send selection (stays in visual mode)
-vim.keymap.set("v", "<M-E>", function()
+vim.keymap.set("x", "<M-E>", function()
   send_to_maya(true)
 end, { noremap = true, desc = "Send selection to Maya" })
