@@ -37,7 +37,7 @@ tooltip {
 tooltip label {
     color: @color7;
 }
-#clock:hover, #custom-pacman:hover, #custom-notification:hover,#bluetooth:hover,#network:hover,#battery:hover, #cpu:hover,#memory:hover,#temperature:hover{
+#clock:hover, #custom-pacman:hover, #custom-notification:hover,#bluetooth:hover,#network:hover,#custom-headscale:hover,#battery:hover, #cpu:hover,#memory:hover,#temperature:hover,#custom-gpu-use:hover,#custom-vram-use:hover{
     transition: all .3s ease;
     color:@color9;
 }
@@ -114,6 +114,21 @@ tooltip label {
     transition: all .3s ease;
     color:@color7;
 }
+#custom-headscale {
+    padding: 0px 5px;
+    transition: all .3s ease;
+}
+#custom-headscale.connected {
+    color: #26A65B;
+}
+#custom-headscale.disconnected,
+#custom-headscale.error {
+    color: #f53c3c;
+}
+#custom-headscale.connecting,
+#custom-headscale.other {
+    color: #ffbe61;
+}
 #battery{
     padding: 0px 5px;
     transition: all .3s ease;
@@ -162,8 +177,8 @@ tooltip label {
 #custom-colorpicker{
     padding: 0px 5px;
 }
-#cpu,#memory,#temperature{
-    padding: 0px 5px;
+#cpu,#memory,#temperature,#custom-gpu-use,#custom-vram-use{
+    padding: 0px 8px;
     transition: all .3s ease; 
     color:@color7;
 

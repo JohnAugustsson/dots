@@ -4,6 +4,10 @@ function fv
     echo "stowu, stows, dots, cava, htop, minimized-wins"
 end
 
+function nvim-help
+    echo "Mnemonic: v/d/c/y + i or a + \""
+end
+
 function minimized-wins
     ~/.config/hypr/scripts/hypr-hidden-min.py $argv
 end
@@ -13,8 +17,8 @@ function fish_prompt
     set -l branch (git branch --show-current 2>/dev/null)
     if test -n "$branch"
         set -l upstream (git rev-parse --abbrev-ref --symbolic-full-name '@{u}' 2>/dev/null)
-        set_color yellow
 
+        set_color cyan
         if test -n "$upstream"
             echo "($branch -> $upstream)"
         else
@@ -44,6 +48,7 @@ alias dots "cd ~/dotfiles"
 alias stowu "cd ~/dotfiles/user && stow -t ~ *"
 alias stows "cd ~/dotfiles/system && sudo stow -t / *"
 alias fav fv
+alias logout hyprshutdown
 
 # GitHub CLI shortcuts
 alias pr 'gh pr'
@@ -51,11 +56,6 @@ alias prs 'gh pr list'
 alias issue 'gh issue'
 alias issues 'gh issue list'
 alias repo 'gh repo'
-
-function claude-mansten
-    cd ~/unreal/projects/mansten
-    claude
-end
 
 function bw-tmux
     set -l socket_dir (set -q OPENCLAW_TMUX_SOCKET_DIR; and echo $OPENCLAW_TMUX_SOCKET_DIR; or echo /tmp/openclaw-tmux-sockets)
@@ -101,5 +101,21 @@ bind \cg __fzf_insert_global_path
 bind \cd __fzf_insert_project_path
 bind \cb __fzf_insert_cwd_path
 
+# z jump (zoxide)
+zoxide init fish | source
+
+# dcvviewer fixerinos
+alias dcvviewer-keygrab $HOME/dev/scripts/dcvviewer-keygrab
+
 # OpenClaw Completion
 source "/home/ja/.openclaw/completions/openclaw.fish"
+
+alias vim nvim
+nvim-help
+
+# p4 environment setup
+set -Ux P4PORT ssl:57.129.101.183:1666
+set -Ux P4USER gooseboy
+set -Ux P4CLIENT gooseboy
+set -Ux P4EDITOR nvim
+set -Ux P4IGNORE .p4ignore

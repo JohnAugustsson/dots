@@ -6,7 +6,7 @@
         "reload_style_on_change": true,
         "modules-right": ["custom/player-prev", "mpris","custom/player-next"],
         "modules-center": ["hyprland/workspaces"],
-        "modules-left": ["custom/notification", "clock","network","custom/audio-popup", "tray", "group/expand"],
+        "modules-left": ["custom/notification", "clock","network","custom/headscale","custom/audio-popup", "cpu", "memory", "temperature", "custom/gpu-use", "custom/vram-use", "tray"],
 
 
         "hyprland/workspaces": {
@@ -105,6 +105,14 @@
             "tooltip-format-ethernet": "{ifname} 󰈀",
             "on-click": "kitty nmtui"
         },
+        "custom/headscale": {
+            "exec": "~/.config/waybar/scripts/headscale-status.sh",
+            "return-type": "json",
+            "interval": 2,
+            "signal": 9,
+            "tooltip": true,
+            "on-click": "~/.config/waybar/scripts/headscale-menu.sh"
+        },
         "bluetooth": {
             "format-on": "󰂯",
             "format-off": "BT-off",
@@ -165,19 +173,32 @@
             "modules": ["custom/expand", "cpu","memory","temperature","custom/endpoint"],
         },
         "cpu": {
-            "format": "󰻠",
-            "tooltip": true
+            "format": "󰻠 {usage}%",
+            "tooltip": false
         },
         "memory": {
-            "format": ""
+            "format": " {used:0.1f}G/{total:0.1f}G",
+            "tooltip": false
         },
         "temperature": {
             "critical-threshold": 80,
-            "format": "",
+            "format": " {temperatureC}°C",
+            "tooltip": false
+        },
+        "custom/gpu-use": {
+            "exec": "~/.config/waybar/scripts/gpu-stats.sh gpu",
+            "interval": 2,
+            "format": "{}",
+            "tooltip": false
+        },
+        "custom/vram-use": {
+            "exec": "~/.config/waybar/scripts/gpu-stats.sh vram",
+            "interval": 2,
+            "format": "{}",
+            "tooltip": false
         },
         "tray": {
             "icon-size": 14,
             "spacing": 10
         },
 } 
-

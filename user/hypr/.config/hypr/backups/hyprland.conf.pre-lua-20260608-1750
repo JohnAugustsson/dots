@@ -208,7 +208,7 @@ animations {
 
 # See https://wiki.hypr.land/Configuring/Dwindle-Layout/ for more
 dwindle {
-    pseudotile = true # Master switch for pseudotiling. Enabling is bound to mainMod + P in the keybinds section below
+    # pseudotile = true # Master switch for pseudotiling. Enabling is bound to mainMod + P in the keybinds section below
     preserve_split = true # You probably want this
 }
 
@@ -311,6 +311,11 @@ binde = $mainMod alt, up, moveactive, 0 -50
 bind = $mainMod alt, down, swapwindow, d
 binde = $mainMod alt, down, moveactive, 0 50
 
+# Resize active window with mainMod + Shift + hjkl
+bind = $mainMod SHIFT, H, resizeactive, -60 0
+bind = $mainMod SHIFT, L, resizeactive, 60 0
+bind = $mainMod SHIFT, K, resizeactive, 0 -60
+bind = $mainMod SHIFT, J, resizeactive, 0 60
 
 # Pin workspaces to monitors
 workspace = 1, monitor:DP-1, default:true
