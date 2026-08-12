@@ -7,8 +7,11 @@ M.opts = {
   debug = false,
 }
 
-local project_markers = {
-  ".project-root",
+-- Same precedence as config.project_picker: '.project-root' beats a deeper build file,
+-- so the cleanup scope matches the project root the session switcher actually uses.
+local primary_marker = ".project-root"
+
+local secondary_markers = {
   ".git",
   ".jj",
   "package.json",
@@ -88,17 +91,10 @@ local function is_inside(path, root)
   return path == root or path:sub(1, #root + 1) == root .. "/"
 end
 
-local function find_project_root(start_path)
-  local path = normalize_path(start_path)
-  if not path then
-    return nil
-  end
-
-  local stat = uv.fs_stat(path)
-  local dir = stat and stat.type == "directory" and path or vim.fn.fnamemodify(path, ":h")
-
+local function search_up(start_dir, markers)
+  local dir = start_dir
   while dir and dir ~= "" and dir ~= "/" do
-    for _, marker in ipairs(project_markers) do
+    for _, marker in ipairs(markers) do
       if uv.fs_stat(dir .. "/" .. marker) then
         return normalize_path(dir)
       end
@@ -109,8 +105,19 @@ local function find_project_root(start_path)
     end
     dir = parent
   end
-
   return nil
+end
+
+local function find_project_root(start_path)
+  local path = normalize_path(start_path)
+  if not path then
+    return nil
+  end
+
+  local stat = uv.fs_stat(path)
+  local dir = stat and stat.type == "directory" and path or vim.fn.fnamemodify(path, ":h")
+
+  return search_up(dir, { primary_marker }) or search_up(dir, secondary_markers)
 end
 
 local function current_scope_root()

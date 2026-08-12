@@ -2,8 +2,13 @@ local M = {}
 
 local uv = vim.uv or vim.loop
 
-local project_markers = {
-  ".project-root",
+-- '.project-root' is the only marker project.nvim is configured to recognise, so it has
+-- to win outright here too. Treating it as just one marker among many let a nested
+-- pyproject.toml/CMakeLists.txt resolve deeper than project.nvim's root, and the two
+-- then chdir against each other forever.
+local primary_marker = ".project-root"
+
+local secondary_markers = {
   ".git",
   ".jj",
   "package.json",
@@ -12,7 +17,11 @@ local project_markers = {
   "Makefile",
 }
 
+local project_markers = { primary_marker }
+vim.list_extend(project_markers, secondary_markers)
+
 M._switching_project = false
+M._auto_switch_disabled = false
 
 local function load_picker_items(args)
   local helper = vim.fn.expand("~/.config/project-root-picker/scripts/project_root_picker.py")
@@ -316,6 +325,26 @@ local function is_inside_saved_root(path)
   return saved_root_for(path) ~= nil
 end
 
+local function search_up(start_dir, markers, saved_root)
+  local dir = start_dir
+  while dir and dir ~= "" and dir ~= "/" do
+    for _, marker in ipairs(markers) do
+      if uv.fs_stat(dir .. "/" .. marker) then
+        return normalize_path(dir)
+      end
+    end
+    if dir == saved_root then
+      break
+    end
+    local parent = vim.fn.fnamemodify(dir, ":h")
+    if parent == dir then
+      break
+    end
+    dir = parent
+  end
+  return nil
+end
+
 local function find_project_root(start_path)
   local path = normalize_path(start_path)
   if not path then
@@ -330,23 +359,11 @@ local function find_project_root(start_path)
   local stat = uv.fs_stat(path)
   local dir = stat and stat.type == "directory" and path or vim.fn.fnamemodify(path, ":h")
 
-  while dir and dir ~= "" and dir ~= "/" do
-    for _, marker in ipairs(project_markers) do
-      if uv.fs_stat(dir .. "/" .. marker) then
-        return normalize_path(dir)
-      end
-    end
-    if dir == saved_root then
-      break
-    end
-    local parent = vim.fn.fnamemodify(dir, ":h")
-    if parent == dir then
-      break
-    end
-    dir = parent
-  end
-
-  return saved_root
+  -- Two passes, not one: the nearest '.project-root' beats a deeper build/package file,
+  -- so this agrees with project.nvim instead of racing it.
+  return search_up(dir, { primary_marker }, saved_root)
+    or search_up(dir, secondary_markers, saved_root)
+    or saved_root
 end
 
 local function current_project_root()
@@ -503,6 +520,15 @@ function M.open_project_file(path)
     return false
   end
 
+  -- switch_to_project() has already cleared _switching_project by now, but this :edit
+  -- still fires BufReadPost -- which lands back in maybe_switch_to_file_project and
+  -- starts the whole switch again. Stay armed until the next event-loop tick, i.e.
+  -- until after this edit and its autocmds have finished.
+  M._switching_project = true
+  vim.schedule(function()
+    M._switching_project = false
+  end)
+
   vim.cmd.edit(vim.fn.fnameescape(path))
   return true
 end
@@ -530,8 +556,45 @@ function M.open_project_path(path, opts)
   return M.open_project_file(path)
 end
 
+-- Last-resort livelock breaker. If root detection ever disagrees with itself again, this
+-- turns an unusable 10-switches-per-second session into a single message.
+local SWITCH_WINDOW_NS = 2 * 1000 * 1000 * 1000
+local SWITCH_LIMIT = 12
+local switch_window_start = 0
+local switch_window_count = 0
+
+function M.enable_auto_switch()
+  M._auto_switch_disabled = false
+  switch_window_start = 0
+  switch_window_count = 0
+end
+
+local function allow_switch(from_root, to_root)
+  local now = uv.hrtime()
+  if now - switch_window_start > SWITCH_WINDOW_NS then
+    switch_window_start = now
+    switch_window_count = 0
+  end
+  switch_window_count = switch_window_count + 1
+  if switch_window_count <= SWITCH_LIMIT then
+    return true
+  end
+
+  M._auto_switch_disabled = true
+  vim.notify(
+    string.format(
+      "project auto-switch disabled: roots disagree (cwd -> %s, file -> %s).\n"
+        .. "Fix the markers, then :ProjectAutoSwitchEnable",
+      tostring(from_root),
+      tostring(to_root)
+    ),
+    vim.log.levels.ERROR
+  )
+  return false
+end
+
 function M.maybe_switch_to_file_project(path)
-  if M._switching_project then
+  if M._switching_project or M._auto_switch_disabled then
     return
   end
   path = normalize_path(path)
@@ -545,8 +608,12 @@ function M.maybe_switch_to_file_project(path)
     return
   end
 
+  if not allow_switch(current_root, project_root) then
+    return
+  end
+
   vim.schedule(function()
-    if M._switching_project then
+    if M._switching_project or M._auto_switch_disabled then
       return
     end
     M.open_project_file(path)
@@ -1028,6 +1095,12 @@ end
 
 function M.setup()
   local group = vim.api.nvim_create_augroup("ja_project_session_switch", { clear = true })
+
+  vim.api.nvim_create_user_command("ProjectAutoSwitchEnable", function()
+    M.enable_auto_switch()
+    vim.notify("project auto-switch re-enabled")
+  end, { desc = "Re-enable project session auto-switching" })
+
   local function maybe_switch_buf(bufnr)
     if vim.bo[bufnr].buftype ~= "" then
       return

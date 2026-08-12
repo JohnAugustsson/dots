@@ -17,7 +17,11 @@ return {
       },
       {
         "<leader>gV",
-        "<cmd>DiffviewOpen origin/master...HEAD<cr>",
+        function()
+          local main = vim.fn.system("git rev-parse --verify origin/main 2>/dev/null")
+          local branch = vim.v.shell_error == 0 and "origin/main" or "origin/master"
+          vim.cmd("DiffviewOpen " .. branch .. "...HEAD")
+        end,
         desc = "Branch changes",
       },
       {

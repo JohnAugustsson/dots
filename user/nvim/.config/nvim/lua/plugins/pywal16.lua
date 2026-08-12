@@ -139,6 +139,8 @@ return {
         end,
       })
 
+      vim.env.PYWAL_CACHE_FILE = vim.fn.stdpath("config") .. "/empty-wal.vim"
+
       vim.cmd.colorscheme("pywal16")
       vim.schedule(fix)
     end,

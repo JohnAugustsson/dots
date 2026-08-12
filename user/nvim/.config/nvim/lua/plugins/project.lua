@@ -21,7 +21,12 @@ return {
     },
     opts = {
       manual_mode = false,
-      detection_methods = { "lsp", "pattern" },
+      -- 'lsp' is deliberately absent. It resolves the root from the attached client's
+      -- root_dir (clangd walks up to .git), which disagreed with the '.project-root'
+      -- marker below. With manual_mode = false both this plugin and
+      -- config.project_picker chdir on BufReadPost, so any disagreement makes them
+      -- fight each other in an endless session-switch loop. Pattern only = one rule.
+      detection_methods = { "pattern" },
       patterns = {
         ".project-root",
       },
