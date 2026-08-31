@@ -1,0 +1,3 @@
+function __fzf_insert_project_path
+    __fzf_insert_project_root_picker_path project
+end

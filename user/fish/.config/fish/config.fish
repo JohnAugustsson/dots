@@ -1,4 +1,6 @@
-source /usr/share/cachyos-fish-config/cachyos-config.fish
+if status is-interactive; and test -r /usr/share/cachyos-fish-config/cachyos-config.fish
+    source /usr/share/cachyos-fish-config/cachyos-config.fish
+end
 
 function fv
     echo "stowu, stows, dots, cava, htop, minimized-wins"
@@ -39,19 +41,18 @@ function fish_prompt
     set_color normal
     echo -n " "
     set_color blue
-    echo ( prompt_pwd --full-length-dirs 10 )
+    echo (prompt_pwd --full-length-dirs 10)
     set_color normal
     echo -n "> "
 end
 
-fish_add_path ~/.npm-global/bin
+fish_add_path --global ~/.npm-global/bin
 
-# Let terminal TUIs/fzf receive Ctrl+S instead of XOFF freezing the terminal.
-status is-interactive; and stty -ixon 2>/dev/null
-
-set -Ux EDITOR nvim
-set -Ux VISUAL nvim
-set -Ux SSH_AUTH_SOCK ~/.ssh/agent.sock
+set -gx EDITOR nvim
+set -gx VISUAL nvim
+if test -S ~/.ssh/agent.sock
+    set -gx SSH_AUTH_SOCK ~/.ssh/agent.sock
+end
 alias dots "cd ~/dotfiles"
 alias stowu "cd ~/dotfiles/user && stow -t ~ *"
 alias stows "cd ~/dotfiles/system && sudo stow -t / *"
@@ -100,35 +101,51 @@ function bw-tmux-login
     tmux -S "$socket" attach -t "$session"
 end
 
-bind --erase --preset \cd
-bind --erase --preset \ce
-bind --erase --preset \cp
-bind \ce exit
-bind \cf __fzf_insert_path
-bind \cg __fzf_insert_global_path
-bind \cd __fzf_insert_project_path
-bind \cb __fzf_insert_cwd_path
-
-# z jump (zoxide)
-zoxide init fish | source
-
-# OpenClaw Completion
-source "/home/ja/.openclaw/completions/openclaw.fish"
-
 alias vim nvim
-nvim-help
-alias cd z
 alias ls eza
 
 # p4 environment setup
-set -Ux P4PORT ssl:57.129.101.183:1666
-set -Ux P4USER gooseboy
-set -Ux P4CLIENT gooseboy
-set -Ux P4EDITOR nvim
-set -Ux P4IGNORE .p4ignore
+set -q P4PORT; or set -gx P4PORT ssl:57.129.101.183:1666
+set -q P4USER; or set -gx P4USER gooseboy
+set -q P4CLIENT; or set -gx P4CLIENT gooseboy
+set -q P4EDITOR; or set -gx P4EDITOR nvim
+set -q P4IGNORE; or set -gx P4IGNORE .p4ignore
 
 if status is-interactive
-    atuin init fish | source
-end
+    # Let terminal TUIs/fzf receive Ctrl+S instead of XOFF freezing the terminal.
+    stty -ixon 2>/dev/null
 
-thefuck --alias | source
+    bind --erase --preset \cd
+    bind --erase --preset \ce
+    bind --erase --preset \cp
+    bind \ce exit
+    bind \cf __fzf_insert_path
+    bind \cg __fzf_insert_global_path
+    bind \cd __fzf_insert_project_path
+    bind \cb __fzf_insert_cwd_path
+
+    if command -q zoxide
+        zoxide init fish | source
+        alias cd z
+    end
+
+    if command -q atuin
+        atuin init fish | source
+    end
+
+    if command -q thefuck
+        thefuck --alias | source
+    end
+
+    set -l openclaw_completion ~/.openclaw/completions/openclaw.fish
+    if command -q openclaw; and test -r $openclaw_completion
+        # OpenClaw currently emits an unquoted `>` short option in both the
+        # completion and its condition. Quote only those malformed sequences so
+        # Fish does not redirect into files named `-l` or `--system-event`.
+        string replace -a -- '-s > -l' '-s ">" -l' <$openclaw_completion \
+            | string replace -a -- ' -> --system-event' " '->' --system-event" \
+            | source
+    end
+
+    nvim-help
+end
