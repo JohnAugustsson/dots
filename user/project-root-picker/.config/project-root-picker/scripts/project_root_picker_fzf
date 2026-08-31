@@ -12,9 +12,12 @@ preview="$scripts/project_root_picker_preview.py"
 nav="$scripts/project_root_picker_match_nav.py"
 state_file="$(mktemp -t project-root-picker-rg.XXXXXX)"
 mode="path"
+preserve_state=0
 
 cleanup() {
-  :
+  if [[ "$preserve_state" -eq 0 ]]; then
+    rm -f -- "$state_file"
+  fi
 }
 trap cleanup EXIT
 
@@ -82,11 +85,9 @@ while true; do
       printf 'path\t%s\n' "$selected_path"
       printf 'row\t%s\n' "$selected"
     } > "$out_file"
-    cp "$out_file" /tmp/project-root-picker-last-result 2>/dev/null || true
+    preserve_state=1
   else
     : > "$out_file"
-    cp "$out_file" /tmp/project-root-picker-last-result 2>/dev/null || true
-    rm -f "$state_file"
   fi
   exit 0
 done
