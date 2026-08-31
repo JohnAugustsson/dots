@@ -1,10 +1,12 @@
-lazy-lock.json
+node_modules/
+**/Cached Theme.pak
 **project-roots
 __pycache__/
 *.py[cod]
 *.log
 .env
 .env.*
+!.env.example
 *.key
 *.pem
 **/secrets/*
