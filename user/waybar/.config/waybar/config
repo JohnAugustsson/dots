@@ -6,7 +6,7 @@
         "reload_style_on_change": true,
         "modules-right": ["custom/player-prev", "mpris","custom/player-next"],
         "modules-center": ["hyprland/workspaces"],
-        "modules-left": ["custom/notification", "clock","network","custom/headscale","custom/audio-popup", "cpu", "memory", "temperature", "custom/gpu-use", "custom/vram-use", "tray"],
+        "modules-left": ["custom/notification", "clock","network","custom/headscale","custom/audio-popup", "cpu", "memory", "temperature", "custom/gpu-use", "custom/vram-use", "bluetooth", "tray"],
 
 
         "hyprland/workspaces": {

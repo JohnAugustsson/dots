@@ -1,0 +1,74 @@
+# Custom btop theme
+
+# Main UI
+theme[main_bg]="#0E0D0F"
+theme[main_fg]="#dec3c4"
+theme[title]="#dec3c4"
+theme[hi_fg]="#C37C85"
+
+# Selection
+theme[selected_bg]="#C37C85"
+theme[selected_fg]="#0E0D0F"
+
+# Dimmed / secondary text
+theme[inactive_fg]="#9b8889"
+theme[graph_text]="#AD8C9F"
+
+# Meter background
+theme[meter_bg]="#0E0D0F"
+
+# Processes
+theme[proc_misc]="#A27689"
+
+# Box outlines
+theme[cpu_box]="#C37C85"
+theme[mem_box]="#AE8883"
+theme[net_box]="#686E88"
+theme[proc_box]="#AD8C9F"
+theme[div_line]="#9B5F6C"
+
+# Temperature
+theme[temp_start]="#686E88"
+theme[temp_mid]="#A27689"
+theme[temp_end]="#C37C85"
+
+# CPU
+theme[cpu_start]="#686E88"
+theme[cpu_mid]="#AD8C9F"
+theme[cpu_end]="#C37C85"
+
+# Memory / disk free
+theme[free_start]="#686E88"
+theme[free_mid]="#AD8C9F"
+theme[free_end]="#dec3c4"
+
+# Memory / disk cached
+theme[cached_start]="#AE8883"
+theme[cached_mid]="#AD8C9F"
+theme[cached_end]="#dec3c4"
+
+# Memory / disk available
+theme[available_start]="#686E88"
+theme[available_mid]="#A27689"
+theme[available_end]="#dec3c4"
+
+# Memory / disk used
+theme[used_start]="#AE8883"
+theme[used_mid]="#A27689"
+theme[used_end]="#C37C85"
+
+# Network download
+theme[download_start]="#686E88"
+theme[download_mid]="#AD8C9F"
+theme[download_end]="#dec3c4"
+
+# Network upload
+theme[upload_start]="#9B5F6C"
+theme[upload_mid]="#A27689"
+theme[upload_end]="#C37C85"
+
+# Process CPU/memory gradient
+theme[process_start]="#686E88"
+theme[process_mid]="#A27689"
+theme[process_end]="#C37C85"
+EOF
