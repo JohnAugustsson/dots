@@ -1,33 +1,44 @@
-#!/bin/bash
-WAYBAR_DIR="$HOME/.config/waybar"
-STYLECSS="$WAYBAR_DIR/style.css"
-CONFIG="$WAYBAR_DIR/config"
-ASSETS="$WAYBAR_DIR/assets"
-THEMES="$WAYBAR_DIR/themes"
-menu() {
-    find "${ASSETS}" -type f \( -iname "*.jpg" -o -iname "*.jpeg" -o -iname "*.png" -o -iname "*.gif" \) | awk '{print "img:"$0}'
+#!/usr/bin/env bash
+set -euo pipefail
+
+state_dir="${XDG_STATE_HOME:-$HOME/.local/state}/waybar"
+state_file="$state_dir/theme"
+asset_dir="${XDG_CONFIG_HOME:-$HOME/.config}/waybar/assets"
+themes=(main experimental line zen)
+theme="${1:-}"
+
+theme_menu() {
+    local candidate
+
+    for candidate in "${themes[@]}"; do
+        printf '%s\0icon\x1f%s/%s.png\n' "$candidate" "$asset_dir" "$candidate"
+    done
 }
-main() {
-    choice=$(menu | wofi -c ~/.config/wofi/waybar -s ~/.config/wofi/style-waybar.css --show dmenu --prompt "  Select Waybar (Scroll with Arrows)" -n)
-    selected_wallpaper=$(echo "$choice" | sed 's/^img://')
-    echo $selected_wallpaper
-    if [[ "$selected_wallpaper" == "$ASSETS/experimental.png" ]]; then
-        cat $THEMES/experimental/style-experimental.css > $STYLECSS
-        cat $THEMES/experimental/config-experimental > $CONFIG
-        pkill waybar && waybar
-    elif [[ "$selected_wallpaper" == "$ASSETS/main.png" ]]; then
-        cat $THEMES/default/style-default.css > $STYLECSS
-        cat $THEMES/default/config-default > $CONFIG
-        pkill waybar && waybar
-    elif [[ "$selected_wallpaper" == "$ASSETS/line.png" ]]; then
-        cat $THEMES/line/style-line.css > $STYLECSS
-        cat $THEMES/line/config-line > $CONFIG
-        pkill waybar && waybar
-    elif [[ "$selected_wallpaper" == "$ASSETS/zen.png" ]]; then
-        cat $THEMES/zen/style-zen.css > $STYLECSS
-        cat $THEMES/zen/config-zen > $CONFIG
-        pkill waybar && waybar
+
+if [[ -z "$theme" ]]; then
+    if ! command -v rofi >/dev/null 2>&1; then
+        printf 'Usage: %s {main|experimental|line|zen}\n' "$0" >&2
+        exit 2
     fi
 
-}
-main
+    theme="$(theme_menu | rofi -dmenu -show-icons -p 'Waybar theme')" || exit 0
+fi
+
+case "$theme" in
+    main|experimental|line|zen) ;;
+    *)
+        printf 'Unknown Waybar theme: %s\n' "$theme" >&2
+        exit 2
+        ;;
+esac
+
+install -d -m 700 "$state_dir"
+temporary_state="$(mktemp "$state_dir/theme.XXXXXX")"
+trap '[[ -z "${temporary_state:-}" ]] || rm -f -- "$temporary_state"' EXIT
+printf '%s\n' "$theme" > "$temporary_state"
+mv -- "$temporary_state" "$state_file"
+temporary_state=""
+
+systemctl --user daemon-reload
+systemctl --user restart waybar.service
+printf 'Waybar theme set to %s\n' "$theme"

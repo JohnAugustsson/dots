@@ -9,21 +9,21 @@ window#waybar{
 }
 .modules-left {
     padding:7px;
-    margin:0 0 10 20;
+    margin: 0 0 10px 20px;
     border-radius:10px;
     background: alpha(@background,.8);
     box-shadow: 0px 0px 2px rgba(0, 0, 0, .8);
 }
 .modules-center {
     padding:7px;
-    margin:0 0 10 0;
+    margin: 0 0 10px 0;
     border-radius:10px;
     background: alpha(@background,.8);
     box-shadow: 0px 0px 2px rgba(0, 0, 0, .8);
 }
 .modules-right {
     padding:7px;
-    margin: 10 10 5 0;
+    margin: 10px 10px 5px 0;
     border-radius:10px;
     background: alpha(@background,.6);
     box-shadow: 0px 0px 2px rgba(0, 0, 0, .6);
@@ -37,11 +37,13 @@ tooltip {
 tooltip label {
     color: @color7;
 }
-#clock:hover, #custom-pacman:hover, #custom-notification:hover,#bluetooth:hover,#network:hover,#custom-headscale:hover,#battery:hover, #cpu:hover,#memory:hover,#temperature:hover,#custom-gpu-use:hover,#custom-vram-use:hover{
+#clock:hover, #custom-notification:hover, #bluetooth:hover, #network:hover,
+#custom-headscale:hover, #wireplumber:hover, #cpu:hover, #memory:hover,
+#temperature:hover, #custom-gpu-stats:hover {
     transition: all .3s ease;
     color:@color9;
 }
-#custom-audio-popup {
+#wireplumber {
     padding: 5px;
     color:@color7;
     margin-left: 5px;
@@ -56,12 +58,6 @@ tooltip label {
     padding: 0px 5px;
     color:@color7;
     transition: all .3s ease;
-}
-#custom-pacman{
-    padding: 0px 5px;
-    transition: all .3s ease;
-    color:@color7;
-
 }
 #workspaces {
     padding: 0px 5px;
@@ -129,11 +125,6 @@ tooltip label {
 #custom-headscale.other {
     color: #ffbe61;
 }
-#battery{
-    padding: 0px 5px;
-    transition: all .3s ease;
-    color:@color7;
-}
 #custom-player-next{
     padding: 0px 5px;
     transition: all .3s ease;
@@ -144,48 +135,10 @@ tooltip label {
     transition: all .3s ease;
     color:@color7;
 }
-#battery.charging {
-    color: #26A65B;
-}
-
-#battery.warning:not(.charging) {
-    color: #ffbe61;
-}
-
-#battery.critical:not(.charging) {
-    color: #f53c3c;
-    animation-name: blink;
-    animation-duration: 0.5s;
-    animation-timing-function: linear;
-    animation-iteration-count: infinite;
-    animation-direction: alternate;
-}
-#group-expand{
-    padding: 0px 5px;
-    transition: all .3s ease; 
-}
-#custom-expand{
-    padding: 0px 5px;
-    color:alpha(@foreground,.2);
-    text-shadow: 0px 0px 2px rgba(0, 0, 0, .7);
-    transition: all .3s ease; 
-}
-#custom-expand:hover{
-    color:rgba(255,255,255,.2);
-    text-shadow: 0px 0px 2px rgba(255, 255, 255, .5);
-}
-#custom-colorpicker{
-    padding: 0px 5px;
-}
-#cpu,#memory,#temperature,#custom-gpu-use,#custom-vram-use{
+#cpu, #memory, #temperature, #custom-gpu-stats {
     padding: 0px 8px;
     transition: all .3s ease; 
     color:@color7;
-
-}
-#custom-endpoint{
-    color:transparent;
-    text-shadow: 0px 0px 1.5px rgba(0, 0, 0, 1);
 
 }
 #tray{

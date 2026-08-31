@@ -1,0 +1,61 @@
+@import url("../style.css");
+
+.modules-center {
+    min-width: 150.5px;
+}
+
+#workspaces {
+    text-shadow: none;
+}
+
+#workspaces button {
+    margin: 0 3px;
+    padding: 0 2px;
+    color: transparent;
+    text-shadow: none;
+    background: @color2;
+    border-radius: 50%;
+    min-width: 15px;
+    transition: all .3s ease;
+}
+
+#workspaces button:hover {
+    color: transparent;
+    text-shadow: none;
+    background: @color1;
+}
+
+#workspaces button.active {
+    padding: 0 2px;
+    color: transparent;
+    text-shadow: none;
+    background: @color1;
+    border-radius: 10px;
+    min-width: 30px;
+}
+
+#workspaces button.active:hover {
+    background: @color2;
+}
+
+#workspaces button.empty {
+    color: transparent;
+    text-shadow: none;
+    background: alpha(@background, .5);
+}
+
+#workspaces button.empty:hover {
+    color: transparent;
+    text-shadow: none;
+    background: @color1;
+}
+
+#workspaces button.empty.active {
+    color: transparent;
+    text-shadow: none;
+    background: @color1;
+}
+
+#workspaces button.empty.active:hover {
+    background: @color2;
+}

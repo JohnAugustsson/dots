@@ -1,0 +1,12 @@
+@import url("../style.css");
+
+.modules-left,
+.modules-right {
+    background: alpha(@background, .35);
+    box-shadow: none;
+}
+
+.modules-center {
+    background: alpha(@background, .8);
+    box-shadow: none;
+}
