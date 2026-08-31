@@ -860,7 +860,7 @@ bind_super_and_muhenkan("", "C", hl.dsp.window.close())
 bind_super_and_muhenkan(
 	"",
 	"Pause",
-	hl.dsp.exec_cmd("command -v hyprshutdown >/dev/null 2>&1 && hyprshutdown || hyprctl dispatch exit")
+	hl.dsp.exec_cmd("command -v hyprshutdown >/dev/null 2>&1 && hyprshutdown || hyprctl dispatch 'hl.dsp.exit()'")
 )
 bind_super_and_muhenkan("", "E", hl.dsp.exec_cmd(fileManager))
 bind_super_and_muhenkan("", "V", hl.dsp.window.float({ action = "toggle" }))

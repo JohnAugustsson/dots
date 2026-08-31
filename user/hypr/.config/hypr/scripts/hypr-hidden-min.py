@@ -42,8 +42,9 @@ SPECIAL_NAME = ARGS.special_name
 CLOSE_ON_FOCUS_LOST = ARGS.close_on_focus_lost
 DEBUG_FOCUS_LOSS = ARGS.debug_focus_loss
 TRACK_FOCUS_LOSS = CLOSE_ON_FOCUS_LOST or DEBUG_FOCUS_LOSS
-SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
-DEBUG_LOG_PATH = os.path.join(SCRIPT_DIR, "hypr-hidden-min-focus.log")
+STATE_HOME = os.environ.get("XDG_STATE_HOME", os.path.expanduser("~/.local/state"))
+DEBUG_STATE_DIR = os.path.join(STATE_HOME, "hyprland")
+DEBUG_LOG_PATH = os.path.join(DEBUG_STATE_DIR, "hypr-hidden-min-focus.log")
 
 
 def run_json_info(command: str):
@@ -65,9 +66,9 @@ def run_json_info(command: str):
         ) from exc
 
 
-def run_dispatch(dispatcher: str, argument: str) -> Tuple[bool, str]:
+def run_dispatch(expression: str) -> Tuple[bool, str]:
     proc = subprocess.run(
-        ["hyprctl", "dispatch", dispatcher, argument],
+        ["hyprctl", "dispatch", expression],
         capture_output=True,
         text=True,
         check=False,
@@ -156,8 +157,9 @@ def move_client_to_monitor_workspace(client: dict, monitor: dict) -> Tuple[bool,
     if not isinstance(ws_id, int) or ws_id < 1:
         return False, f"Monitor {mon_name} has no usable active workspace id"
 
+    window = json.dumps(f"address:{client['address']}")
     ok, msg = run_dispatch(
-        "movetoworkspacesilent", f"{ws_id},address:{client['address']}"
+        f"hl.dsp.window.move({{ workspace = {ws_id}, follow = false, window = {window} }})"
     )
     if ok:
         return True, f"Sent to {mon_name} -> {active_ws.get('name', ws_id)}"
@@ -165,7 +167,8 @@ def move_client_to_monitor_workspace(client: dict, monitor: dict) -> Tuple[bool,
 
 
 def close_client(client: dict) -> Tuple[bool, str]:
-    ok, msg = run_dispatch("closewindow", f"address:{client['address']}")
+    window = json.dumps(f"address:{client['address']}")
+    ok, msg = run_dispatch(f"hl.dsp.window.close({{ window = {window} }})")
     if ok:
         return True, f"Closed {client_label(client)}"
     return False, msg
@@ -257,7 +260,8 @@ def get_socket2_path() -> str:
 
 
 def focus_client(address: str) -> Tuple[bool, str]:
-    return run_dispatch("focuswindow", f"address:{address}")
+    window = json.dumps(f"address:{address}")
+    return run_dispatch(f"hl.dsp.focus({{ window = {window} }})")
 
 
 def tui(stdscr):
@@ -290,6 +294,7 @@ def tui(stdscr):
             return
 
         try:
+            os.makedirs(DEBUG_STATE_DIR, mode=0o700, exist_ok=True)
             with open(DEBUG_LOG_PATH, "w", encoding="utf-8") as debug_file:
                 debug_file.write(
                     f"{time.strftime('%Y-%m-%d %H:%M:%S')} start pid={os.getpid()} argv={sys.argv!r}\n"
@@ -418,7 +423,8 @@ def tui(stdscr):
                     last_focus_miss_addr = new_addr or "-"
                     log_focus(f"would kill on event focus change to {new_addr or '-'}")
                     if not DEBUG_FOCUS_LOSS:
-                        run_dispatch("killwindow", f"address:{my_addr}")
+                        window = json.dumps(f"address:{my_addr}")
+                        run_dispatch(f"hl.dsp.window.kill({{ window = {window} }})")
                         raise SystemExit
 
         active_addr_norm = normalize_address(get_active_window().get("address"))
@@ -430,7 +436,8 @@ def tui(stdscr):
                         f"would kill on poll focus change to {active_addr_norm or '-'}"
                     )
                 if not DEBUG_FOCUS_LOSS:
-                    run_dispatch("killwindow", f"address:{my_addr}")
+                    window = json.dumps(f"address:{my_addr}")
+                    run_dispatch(f"hl.dsp.window.kill({{ window = {window} }})")
                     raise SystemExit
             return
 

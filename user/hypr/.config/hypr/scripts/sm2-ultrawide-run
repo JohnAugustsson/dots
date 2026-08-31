@@ -19,8 +19,8 @@ fi
 
 # Preserve the game's previous placement on workspace 2 of the 5120x1440
 # monitor even when Steam was launched from the second display.
-hyprctl dispatch focusmonitor DP-1 >/dev/null 2>&1 || true
-hyprctl dispatch workspace 2 >/dev/null 2>&1 || true
+hyprctl dispatch 'hl.dsp.focus({ monitor = "DP-1" })' >/dev/null 2>&1 || true
+hyprctl dispatch 'hl.dsp.focus({ workspace = 2 })' >/dev/null 2>&1 || true
 
 exec gamescope \
 	--backend wayland \
