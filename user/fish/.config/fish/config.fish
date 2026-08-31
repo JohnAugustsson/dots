@@ -8,6 +8,15 @@ function nvim-help
     echo "Mnemonic: v/d/c/y + i or a + \""
 end
 
+function img
+    if test (count $argv) -eq 0
+        printf 'usage: img <image-file> [kitten-icat-options...]\n' >&2
+        return 1
+    end
+
+    kitten icat $argv
+end
+
 function minimized-wins
     ~/.config/hypr/scripts/hypr-hidden-min.py $argv
 end
@@ -40,7 +49,6 @@ fish_add_path ~/.npm-global/bin
 # Let terminal TUIs/fzf receive Ctrl+S instead of XOFF freezing the terminal.
 status is-interactive; and stty -ixon 2>/dev/null
 
-set -x LD_LIBRARY_PATH /usr/local/lib
 set -Ux EDITOR nvim
 set -Ux VISUAL nvim
 set -Ux SSH_AUTH_SOCK ~/.ssh/agent.sock
@@ -104,14 +112,13 @@ bind \cb __fzf_insert_cwd_path
 # z jump (zoxide)
 zoxide init fish | source
 
-# dcvviewer fixerinos
-alias dcvviewer-keygrab $HOME/dev/scripts/dcvviewer-keygrab
-
 # OpenClaw Completion
 source "/home/ja/.openclaw/completions/openclaw.fish"
 
 alias vim nvim
 nvim-help
+alias cd z
+alias ls eza
 
 # p4 environment setup
 set -Ux P4PORT ssl:57.129.101.183:1666
@@ -119,3 +126,9 @@ set -Ux P4USER gooseboy
 set -Ux P4CLIENT gooseboy
 set -Ux P4EDITOR nvim
 set -Ux P4IGNORE .p4ignore
+
+if status is-interactive
+    atuin init fish | source
+end
+
+thefuck --alias | source
