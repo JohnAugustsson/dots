@@ -1,0 +1,198 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+readonly game_class="steam_app_2183900"
+readonly cinema_width=2560
+readonly cinema_height=1440
+readonly lock_file="${XDG_RUNTIME_DIR:-/tmp}/sm2-cinema-toggle.lock"
+
+notify() {
+	local color="$1"
+	local message="$2"
+
+	hyprctl notify -1 2500 "rgb($color)" "$message" >/dev/null 2>&1 || true
+}
+
+client_json="$(
+	hyprctl -j clients | jq -c --arg game_class "$game_class" '
+		first(
+			.[]
+			| select(.mapped and (.initialClass == $game_class or .class == $game_class))
+		)
+	'
+)"
+
+if [[ -z "$client_json" || "$client_json" == "null" ]]; then
+	notify "ff5555" "Space Marine 2 window not found"
+	exit 1
+fi
+
+address="$(jq -r '.address' <<<"$client_json")"
+monitor_id="$(jq -r '.monitor' <<<"$client_json")"
+current_width="$(jq -r '.size[0]' <<<"$client_json")"
+xwayland="$(jq -r '.xwayland' <<<"$client_json")"
+game_pid="$(jq -r '.pid' <<<"$client_json")"
+floating="$(jq -r '.floating' <<<"$client_json")"
+fullscreen="$(jq -r '.fullscreen' <<<"$client_json")"
+fullscreen_client="$(jq -r '.fullscreenClient' <<<"$client_json")"
+
+# WineWayland toplevels reject this compositor-driven resize. Moving one after
+# that rejection shifts the still-full-width window off-screen, so fail before
+# changing any state and let the next XWayland launch use the toggle normally.
+if [[ "$xwayland" != "true" ]]; then
+	notify "ff5555" "Space Marine 2: restart required for the F2 toggle"
+	exit 1
+fi
+
+if [[ "$floating" != "true" || "$fullscreen" != "0" ]]; then
+	notify "ff5555" "Space Marine 2: select Windowed display mode first"
+	exit 1
+fi
+
+monitor_json="$(
+	hyprctl -j monitors | jq -c --argjson monitor_id "$monitor_id" '
+		first(.[] | select(.id == $monitor_id))
+	'
+)"
+
+if [[ -z "$monitor_json" || "$monitor_json" == "null" ]]; then
+	notify "ff5555" "Space Marine 2 monitor not found"
+	exit 1
+fi
+
+monitor_x="$(jq -r '.x' <<<"$monitor_json")"
+monitor_y="$(jq -r '.y' <<<"$monitor_json")"
+monitor_width="$(jq -r '.width' <<<"$monitor_json")"
+monitor_height="$(jq -r '.height' <<<"$monitor_json")"
+monitor_name="$(jq -r '.name' <<<"$monitor_json")"
+
+if (( monitor_width < cinema_width || monitor_height < cinema_height )); then
+	notify "ff5555" "Space Marine 2: monitor is smaller than 2560x1440"
+	exit 1
+fi
+
+exec 9>"$lock_file"
+flock -n 9 || exit 0
+
+if [[ -z "${DISPLAY:-}" ]] || ! command -v xdotool >/dev/null || ! command -v xrandr >/dev/null; then
+	notify "ff5555" "Space Marine 2: XWayland controls unavailable"
+	exit 1
+fi
+
+x11_geometry="$(
+	xrandr --listmonitors 2>/dev/null \
+		| awk -v monitor_name="$monitor_name" '$NF == monitor_name { print $(NF - 1); exit }' \
+		| sed -E 's#/([0-9]+)##g'
+)"
+
+if [[ ! "$x11_geometry" =~ ^([0-9]+)x([0-9]+)([+-][0-9]+)([+-][0-9]+)$ ]]; then
+	notify "ff5555" "Space Marine 2: XWayland monitor not found"
+	exit 1
+fi
+
+x11_monitor_width="${BASH_REMATCH[1]}"
+x11_monitor_height="${BASH_REMATCH[2]}"
+x11_monitor_x="${BASH_REMATCH[3]}"
+x11_monitor_y="${BASH_REMATCH[4]}"
+
+if (( x11_monitor_width != monitor_width || x11_monitor_height != monitor_height )); then
+	notify "ff5555" "Space Marine 2: monitor geometry mismatch"
+	exit 1
+fi
+
+x11_window="$(
+	xdotool search --name '^Warhammer 40,000: Space Marine 2 CLIENT' 2>/dev/null \
+		| tail -n 1 \
+		|| true
+)"
+
+if [[ -z "$x11_window" ]]; then
+	notify "ff5555" "Space Marine 2 X11 window not found"
+	exit 1
+fi
+
+x11_window_pid="$(
+	xprop -id "$x11_window" _NET_WM_PID 2>/dev/null \
+		| sed -nE 's/.* = ([0-9]+)$/\1/p'
+)"
+x11_window_class="$(xprop -id "$x11_window" WM_CLASS 2>/dev/null || true)"
+
+if [[ "$x11_window_pid" != "$game_pid" || "$x11_window_class" != *'"steam_app_2183900", "steam_app_2183900"'* ]]; then
+	notify "ff5555" "Space Marine 2 X11 window mismatch"
+	exit 1
+fi
+
+# Recover cleanly if a previous wide transition was interrupted after the game
+# requested X11 fullscreen but before the request could be removed.
+if [[ "$fullscreen_client" != "0" ]]; then
+	timeout 4s xdotool windowstate --remove FULLSCREEN "$x11_window"
+fi
+
+if (( current_width >= monitor_width - 4 )); then
+	target_width=$cinema_width
+	target_height=$cinema_height
+	target_x11=$((x11_monitor_x + (x11_monitor_width - target_width) / 2))
+	target_y11=$((x11_monitor_y + (x11_monitor_height - target_height) / 2))
+	target_hypr_x=$((monitor_x + (monitor_width - target_width) / 2))
+	target_hypr_y=$((monitor_y + (monitor_height - target_height) / 2))
+	description="2560x1440 centered"
+else
+	target_width=$monitor_width
+	target_height=$monitor_height
+	target_x11=$x11_monitor_x
+	target_y11=$x11_monitor_y
+	target_hypr_x=$monitor_x
+	target_hypr_y=$monitor_y
+	description="${target_width}x${target_height} fake fullscreen"
+fi
+
+# Hyprland's resize dispatcher oscillates this fixed-size Wine X11 window
+# between complementary widths. Configure the X11 window directly instead.
+if (( target_width == cinema_width )); then
+	timeout 4s xdotool windowsize --sync "$x11_window" "$target_width" "$target_height"
+	timeout 4s xdotool windowmove --sync "$x11_window" "$target_x11" "$target_y11"
+else
+	timeout 4s xdotool windowmove --sync "$x11_window" "$target_x11" "$target_y11"
+	timeout 4s xdotool windowsize --sync "$x11_window" "$target_width" "$target_height"
+	# At exact monitor size the game requests X11 fullscreen. Removing that X11
+	# request preserves the exact geometry; clearing Hyprland's fullscreen state
+	# directly instead restores stale window geometry and causes the jump.
+	sleep 0.05
+	timeout 4s xdotool windowstate --remove FULLSCREEN "$x11_window"
+fi
+
+confirmed=""
+for _ in {1..40}; do
+	confirmed="$(
+		hyprctl -j clients | jq -r \
+			--arg address "$address" \
+			--argjson width "$target_width" \
+			--argjson height "$target_height" \
+			--argjson x "$target_hypr_x" \
+			--argjson y "$target_hypr_y" '
+				first(
+					.[]
+					| select(
+						.address == $address
+						and .size == [$width, $height]
+						and .at == [$x, $y]
+						and .fullscreen == 0
+						and .fullscreenClient == 0
+					)
+				)
+				// empty
+			'
+	)"
+	[[ -n "$confirmed" ]] && break
+	if (( target_width == monitor_width )); then
+		timeout 4s xdotool windowstate --remove FULLSCREEN "$x11_window"
+	fi
+	sleep 0.05
+done
+
+if [[ -z "$confirmed" ]]; then
+	notify "ff5555" "Space Marine 2 did not accept $description"
+	exit 1
+fi
+
+notify "8be9fd" "Space Marine 2: $description"

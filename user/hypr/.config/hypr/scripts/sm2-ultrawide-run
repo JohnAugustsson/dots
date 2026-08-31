@@ -1,0 +1,36 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+# Space Marine 2 officially handles the 21:9 class, but the physical 5120x1440
+# display does not advertise its 3440x1440 member. Give the game a fixed
+# 3440x1440 display and place that unscaled image in the center of the real
+# 5120x1440 output. Gamescope fills the unused 840 pixels on each side black.
+readonly output_width=5120
+readonly output_height=1440
+readonly game_width=3440
+readonly game_height=1440
+readonly refresh_rate=239.761
+
+if ! command -v gamescope >/dev/null 2>&1; then
+	hyprctl notify -1 4000 "rgb(ff5555)" \
+		"Space Marine 2: Gamescope is required for 3440x1440" >/dev/null 2>&1 || true
+	exit 127
+fi
+
+# Preserve the game's previous placement on workspace 2 of the 5120x1440
+# monitor even when Steam was launched from the second display.
+hyprctl dispatch focusmonitor DP-1 >/dev/null 2>&1 || true
+hyprctl dispatch workspace 2 >/dev/null 2>&1 || true
+
+exec gamescope \
+	--backend wayland \
+	-W "$output_width" \
+	-H "$output_height" \
+	-w "$game_width" \
+	-h "$game_height" \
+	-r "$refresh_rate" \
+	-S fit \
+	-F linear \
+	-f \
+	--force-windows-fullscreen \
+	-- "$@"

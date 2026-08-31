@@ -1,0 +1,173 @@
+#!/usr/bin/env bash
+set -uo pipefail
+
+runtime_root="${XDG_RUNTIME_DIR:-/tmp}"
+state_root="${XDG_STATE_HOME:-$HOME/.local/state}"
+runtime_dir="$runtime_root/sm2-gamescope"
+state_dir="$state_root/sm2-gamescope"
+runtime_mode_file="$runtime_dir/mode"
+owner_file="$runtime_dir/owner"
+gamescope_pid_file="$runtime_dir/gamescope-pid"
+display_file="$runtime_dir/display"
+toggle_lock_file="$runtime_dir/toggle.lock"
+saved_mode_file="$state_dir/mode"
+
+output_width=5120
+output_height=1440
+wide_width=5120
+cinema_width=2560
+refresh_rate=239.761
+
+owner_pid="$BASHPID"
+gamescope_pid=""
+
+notify() {
+    local color="$1"
+    local message="$2"
+
+    hyprctl notify -1 3500 "rgb($color)" "$message" >/dev/null 2>&1 || true
+}
+
+read_mode() {
+    local mode="wide"
+
+    if [[ -r "$saved_mode_file" ]]; then
+        IFS= read -r mode <"$saved_mode_file" || mode="wide"
+    fi
+
+    case "$mode" in
+        wide|cinema) printf '%s\n' "$mode" ;;
+        *) printf 'wide\n' ;;
+    esac
+}
+
+mode_width() {
+    if [[ "$1" == "cinema" ]]; then
+        printf '%s\n' "$cinema_width"
+    else
+        printf '%s\n' "$wide_width"
+    fi
+}
+
+terminate_gamescope() {
+    local reaper_pid=""
+
+    if [[ -z "$gamescope_pid" ]] || ! kill -0 "$gamescope_pid" 2>/dev/null; then
+        return
+    fi
+
+    reaper_pid="$(pgrep -o -P "$gamescope_pid" -x gamescopereaper 2>/dev/null || true)"
+    if [[ -n "$reaper_pid" ]]; then
+        kill -TERM "$reaper_pid" 2>/dev/null || true
+    else
+        kill -TERM "$gamescope_pid" 2>/dev/null || true
+    fi
+}
+
+cleanup() {
+    local recorded_owner=""
+
+    trap - EXIT INT TERM
+    terminate_gamescope
+
+    if [[ -r "$owner_file" ]]; then
+        IFS= read -r recorded_owner <"$owner_file" || recorded_owner=""
+    fi
+
+    if [[ "$recorded_owner" == "$owner_pid" ]]; then
+        rm -f -- \
+            "$runtime_mode_file" \
+            "$owner_file" \
+            "$gamescope_pid_file" \
+            "$display_file" \
+            "$toggle_lock_file"
+        rmdir -- "$runtime_dir" 2>/dev/null || true
+    fi
+}
+
+handle_signal() {
+    local status="$1"
+
+    terminate_gamescope
+    exit "$status"
+}
+
+discover_nested_display() {
+    local xwayland_pid=""
+    local nested_display=""
+
+    for _ in {1..300}; do
+        if ! kill -0 "$gamescope_pid" 2>/dev/null; then
+            return 1
+        fi
+
+        xwayland_pid="$(pgrep -o -s "$gamescope_pid" -x Xwayland 2>/dev/null || true)"
+        if [[ -n "$xwayland_pid" && -r "/proc/$xwayland_pid/cmdline" ]]; then
+            nested_display="$(tr '\0' '\n' <"/proc/$xwayland_pid/cmdline" | sed -n '2p')"
+            if [[ "$nested_display" =~ ^:[0-9]+$ ]]; then
+                printf '%s\n' "$nested_display" >"$display_file"
+                return 0
+            fi
+        fi
+
+        sleep 0.1
+    done
+
+    return 1
+}
+
+if (( $# == 0 )); then
+    printf 'usage: %s command [args...]\n' "$0" >&2
+    exit 2
+fi
+
+if ! command -v gamescope >/dev/null 2>&1; then
+    notify "ff5555" "Space Marine 2: Gamescope is not installed"
+    exit 127
+fi
+
+install -d -m 700 -- "$runtime_dir" "$state_dir"
+rm -f -- \
+    "$runtime_mode_file" \
+    "$owner_file" \
+    "$gamescope_pid_file" \
+    "$display_file" \
+    "$toggle_lock_file"
+
+mode="$(read_mode)"
+game_width="$(mode_width "$mode")"
+printf '%s\n' "$mode" >"$runtime_mode_file"
+printf '%s\n' "$owner_pid" >"$owner_file"
+
+trap cleanup EXIT
+trap 'handle_signal 130' INT
+trap 'handle_signal 143' TERM
+
+setsid gamescope \
+    --backend wayland \
+    -W "$output_width" \
+    -H "$output_height" \
+    -w "$game_width" \
+    -h "$output_height" \
+    -r "$refresh_rate" \
+    -S fit \
+    -F linear \
+    -f \
+    --force-windows-fullscreen \
+    -- "$@" &
+gamescope_pid="$!"
+printf '%s\n' "$gamescope_pid" >"$gamescope_pid_file"
+
+if ! discover_nested_display; then
+    if kill -0 "$gamescope_pid" 2>/dev/null; then
+        notify "ffb86c" "Space Marine 2: live resolution control was not found"
+    fi
+fi
+
+if wait "$gamescope_pid"; then
+    status=0
+else
+    status="$?"
+fi
+gamescope_pid=""
+exit "$status"

@@ -1,0 +1,95 @@
+#!/usr/bin/env bash
+set -u -o pipefail
+
+readonly game_class="steam_app_2183900"
+readonly capture_dir="${XDG_RUNTIME_DIR:-/tmp}/sm2-input-captures"
+readonly lock_file="${XDG_RUNTIME_DIR:-/tmp}/sm2-input-capture.lock"
+
+notify() {
+	local color="$1"
+	local message="$2"
+	hyprctl notify -1 2500 "rgb($color)" "$message" >/dev/null 2>&1 || true
+}
+
+mkdir -p "$capture_dir"
+
+exec 9>"$lock_file"
+if ! flock -n 9; then
+	notify "f1fa8c" "Space Marine 2 input capture already running"
+	exit 0
+fi
+
+timestamp="$(date +%Y%m%d-%H%M%S)"
+capture_file="$capture_dir/input-$timestamp.log"
+raw_file="$capture_dir/input-$timestamp-xi2.log"
+
+game_json="$(
+	hyprctl -j clients | jq -c --arg game_class "$game_class" '
+		first(
+			.[]
+			| select(.mapped and (.initialClass == $game_class or .class == $game_class))
+		)
+	'
+)"
+
+if [[ -z "$game_json" || "$game_json" == "null" ]]; then
+	notify "ff5555" "Space Marine 2 window not found"
+	exit 1
+fi
+
+notify "8be9fd" "Capturing Space Marine 2 input for 6 seconds - move the pointer"
+
+# XI2 raw events preserve device motion even while the game owns the pointer.
+timeout 6s stdbuf -oL xinput test-xi2 --root >"$raw_file" 2>&1 &
+xi2_pid=$!
+
+{
+	printf 'captured_at=%s\n' "$(date --iso-8601=ns)"
+	printf 'game=%s\n' "$game_json"
+	printf '\n[active-window]\n'
+	hyprctl -j activewindow
+	printf '\n[monitors]\n'
+	hyprctl -j monitors
+	printf '\n[hyprland-devices]\n'
+	hyprctl -j devices
+	printf '\n[xinput]\n'
+	xinput --list --long
+	printf '\n[x11-root]\n'
+	xprop -root _NET_ACTIVE_WINDOW _NET_CLIENT_LIST _NET_DESKTOP_GEOMETRY 2>&1 || true
+
+	printf '\n[game-x11-windows]\n'
+	mapfile -t x11_windows < <(xdotool search --class "$game_class" 2>/dev/null || true)
+	if (( ${#x11_windows[@]} == 0 )); then
+		printf 'No matching X11 window found\n'
+	else
+		for window_id in "${x11_windows[@]}"; do
+			printf '\nwindow_id=%s\n' "$window_id"
+			xwininfo -id "$window_id" 2>&1 || true
+			xprop -id "$window_id" \
+				WM_CLASS WM_NAME WM_NORMAL_HINTS \
+				_NET_WM_STATE _NET_WM_WINDOW_TYPE _NET_FRAME_EXTENTS 2>&1 || true
+		done
+	fi
+
+	printf '\n[pointer-samples]\n'
+	printf 'timestamp\thypr_x\thypr_y\tx11_x\tx11_y\tx11_window\n'
+	for _ in {1..120}; do
+		now="$(date +%s.%N)"
+		hypr_position="$(hyprctl -j cursorpos 2>/dev/null | jq -r '[.x, .y] | @tsv' 2>/dev/null || printf '\t')"
+		x11_position="$(
+			xdotool getmouselocation --shell 2>/dev/null \
+				| awk -F= '
+					$1 == "X" { x = $2 }
+					$1 == "Y" { y = $2 }
+					$1 == "WINDOW" { window = $2 }
+					END { printf "%s\\t%s\\t%s", x, y, window }
+				'
+		)"
+		printf '%s\t%s\t%s\n' "$now" "$hypr_position" "$x11_position"
+		sleep 0.05
+	done
+} >"$capture_file" 2>&1
+
+wait "$xi2_pid" 2>/dev/null || true
+notify "50fa7b" "Space Marine 2 input captured - you can leave the game now"
+

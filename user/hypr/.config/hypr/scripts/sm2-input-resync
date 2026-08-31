@@ -1,0 +1,49 @@
+#!/usr/bin/env bash
+set -euo pipefail
+
+readonly game_class="steam_app_2183900"
+readonly log_file="${XDG_RUNTIME_DIR:-/tmp}/sm2-input-resync.log"
+
+notify() {
+	local color="$1"
+	local message="$2"
+	hyprctl notify -1 3000 "rgb($color)" "$message" >/dev/null 2>&1 || true
+}
+
+active_json="$(hyprctl -j activewindow)"
+if ! jq -e --arg game_class "$game_class" '.class == $game_class' <<<"$active_json" >/dev/null; then
+	notify "ff5555" "Space Marine 2 must be focused before pointer resync"
+	exit 1
+fi
+
+x11_position="$(xdotool getmouselocation --shell 2>/dev/null)"
+x11_x="$(awk -F= '$1 == "X" { print $2 }' <<<"$x11_position")"
+x11_y="$(awk -F= '$1 == "Y" { print $2 }' <<<"$x11_position")"
+
+if [[ ! "$x11_x" =~ ^-?[0-9]+$ || ! "$x11_y" =~ ^-?[0-9]+$ ]]; then
+	notify "ff5555" "Could not read the Space Marine 2 X11 cursor"
+	exit 1
+fi
+
+read -r game_x game_y game_width game_height < <(
+	jq -r '[.at[0], .at[1], .size[0], .size[1]] | @tsv' <<<"$active_json"
+)
+game_right=$((game_x + game_width))
+game_bottom=$((game_y + game_height))
+
+if (( x11_x < game_x || x11_x >= game_right || x11_y < game_y || x11_y >= game_bottom )); then
+	notify "ff5555" "X11 cursor is outside the Space Marine 2 window"
+	exit 1
+fi
+
+before="$(hyprctl -j cursorpos | jq -c '.')"
+hyprctl dispatch "hl.dsp.cursor.move({ x = $x11_x, y = $x11_y })" >/dev/null
+sleep 0.05
+after="$(hyprctl -j cursorpos | jq -c '.')"
+
+printf '%s game=%s,%s+%sx%s x11=%s,%s before=%s after=%s\n' \
+	"$(date --iso-8601=ns)" \
+	"$game_x" "$game_y" "$game_width" "$game_height" \
+	"$x11_x" "$x11_y" "$before" "$after" >>"$log_file"
+
+notify "50fa7b" "Space Marine 2 pointer resynced - click without moving first"
