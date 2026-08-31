@@ -5,6 +5,21 @@ vim.opt.clipboard = ""
 if vim.env.KITTY_SCROLLBACK_NVIM ~= "true" then
   vim.opt.clipboard = "unnamedplus"
 end
+
+-- Keep a stalled Wayland clipboard owner from blocking Neovim indefinitely.
+vim.g.clipboard = {
+  name = "wl-clipboard (bounded reads)",
+  copy = {
+    ["+"] = { "wl-copy", "--type", "text/plain" },
+    ["*"] = { "wl-copy", "--primary", "--type", "text/plain" },
+  },
+  paste = {
+    ["+"] = { "timeout", "--kill-after=1s", "5s", "wl-paste", "--no-newline" },
+    ["*"] = { "timeout", "--kill-after=1s", "5s", "wl-paste", "--no-newline", "--primary" },
+  },
+  cache_enabled = 1,
+}
+
 vim.opt.virtualedit = "onemore"
 
 -- 'autoread' makes the buffer reload automatically as long as the buffer itself has no unsaved changes.
