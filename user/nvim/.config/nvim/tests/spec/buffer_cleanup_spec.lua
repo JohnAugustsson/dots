@@ -1,136 +1,104 @@
 local cleanup = require("config.buffer_cleanup")
 
-local function make_project_files(names)
+local original_cwd = vim.fn.getcwd()
+local temp_dirs = {}
+
+local function temp_dir()
   local dir = vim.fn.tempname()
   vim.fn.mkdir(dir, "p")
-  local paths = {}
-  for _, name in ipairs(names) do
-    local path = dir .. "/" .. name
-    vim.fn.writefile({ name }, path)
-    table.insert(paths, path)
-  end
-  return dir, paths
+  table.insert(temp_dirs, dir)
+  return dir
 end
 
-local function open_sequence(paths)
-  local bufs = {}
-  for _, path in ipairs(paths) do
-    vim.cmd.edit(vim.fn.fnameescape(path))
-    table.insert(bufs, vim.api.nvim_get_current_buf())
-  end
-  return bufs
+local function file_buffer(path)
+  vim.fn.mkdir(vim.fn.fnamemodify(path, ":h"), "p")
+  vim.fn.writefile({ path }, path)
+  local bufnr = vim.fn.bufadd(path)
+  vim.fn.bufload(bufnr)
+  vim.bo[bufnr].buflisted = true
+  return bufnr
 end
 
-local function reset_editor_state()
-  package.loaded.harpoon = nil
-  cleanup.state.recent = {}
+local function reset_editor()
   vim.cmd("silent! %bwipeout!")
   vim.cmd("enew")
 end
 
 describe("buffer cleanup policy", function()
   before_each(function()
-    reset_editor_state()
-    cleanup.setup({ debug = false, keep_recent = 8 })
+    reset_editor()
+    cleanup.opts.enabled = true
+    cleanup.opts.debug = false
   end)
 
   after_each(function()
-    reset_editor_state()
+    vim.api.nvim_set_current_dir(original_cwd)
+    reset_editor()
+    for _, dir in ipairs(temp_dirs) do
+      vim.fn.delete(dir, "rf")
+    end
+    temp_dirs = {}
   end)
 
-  it("deletes the leaving buffer even when it is the alternate buffer", function()
-    local dir, paths = make_project_files({ "a.txt", "b.txt", "c.txt", "d.txt" })
-    local bufs = open_sequence(paths)
+  it("deletes an unmodified hidden file outside the active scope", function()
+    local root = temp_dir()
+    vim.fn.writefile({}, root .. "/.project-root")
+    local inside = file_buffer(root .. "/inside.txt")
+    local outside = file_buffer(temp_dir() .. "/outside.txt")
 
-    cleanup.state.recent = { bufs[3], bufs[2], bufs[1] }
-    cleanup.cleanup_once(bufs[3])
+    vim.api.nvim_set_current_dir(root)
+    vim.api.nvim_set_current_buf(inside)
+    cleanup.cleanup_once(outside)
 
-    assert.is_false(vim.bo[bufs[3]].buflisted)
-    assert.is_true(vim.api.nvim_buf_is_valid(bufs[2]))
-    assert.is_true(vim.api.nvim_buf_is_valid(bufs[4]))
-    assert.are.same(bufs[4], vim.api.nvim_get_current_buf())
-
-    vim.fn.delete(dir, "rf")
+    assert.is_false(vim.bo[outside].buflisted)
+    assert.is_true(vim.api.nvim_buf_is_valid(inside))
   end)
 
-  it("never deletes modified buffers", function()
-    local dir, paths = make_project_files({ "a.txt", "b.txt", "c.txt", "d.txt" })
-    local bufs = open_sequence(paths)
+  it("keeps files inside the active scope", function()
+    local root = temp_dir()
+    local bufnr = file_buffer(root .. "/nested/inside.txt")
 
-    vim.api.nvim_set_current_buf(bufs[1])
-    vim.api.nvim_buf_set_lines(bufs[1], 0, -1, false, { "changed" })
-    vim.api.nvim_set_current_buf(bufs[4])
+    local should_delete, reason = cleanup._should_delete_buffer(bufnr, root)
 
-    cleanup.state.recent = { bufs[3], bufs[2], bufs[1] }
-    cleanup.cleanup_once(bufs[1])
-
-    assert.is_true(vim.api.nvim_buf_is_valid(bufs[1]))
-    assert.is_true(vim.bo[bufs[1]].modified)
-
-    vim.fn.delete(dir, "rf")
+    assert.is_false(should_delete)
+    assert.are.same("inside-scope", reason)
   end)
 
-  it("never deletes harpoon files", function()
-    local dir, paths = make_project_files({ "a.txt", "b.txt", "c.txt", "d.txt" })
-    local bufs = open_sequence(paths)
+  it("uses cwd scope while a destination file is waiting to switch projects", function()
+    local source = temp_dir()
+    local destination = temp_dir()
+    vim.fn.writefile({}, source .. "/.project-root")
+    vim.fn.writefile({}, destination .. "/.project-root")
+    local source_buf = file_buffer(source .. "/source.txt")
+    local destination_buf = file_buffer(destination .. "/destination.txt")
 
-    package.loaded.harpoon = {
-      list = function()
-        return { items = { { value = paths[1] } } }
-      end,
-    }
+    vim.api.nvim_set_current_dir(source)
+    vim.api.nvim_set_current_buf(source_buf)
+    vim.api.nvim_set_current_buf(destination_buf)
+    cleanup.cleanup_once(source_buf)
 
-    cleanup.state.recent = { bufs[3], bufs[2], bufs[1] }
-    cleanup.cleanup_once(bufs[1])
-
-    assert.is_true(vim.api.nvim_buf_is_valid(bufs[1]))
-
-    vim.fn.delete(dir, "rf")
+    assert.is_true(vim.api.nvim_buf_is_valid(source_buf))
+    assert.is_true(vim.bo[source_buf].buflisted)
   end)
 
-  it("tracks one extra grace buffer beyond alternate", function()
-    local dir, paths = make_project_files({ "a.txt", "b.txt", "c.txt", "d.txt" })
-    local bufs = open_sequence(paths)
+  it("keeps modified hidden files outside the active scope", function()
+    local root = temp_dir()
+    local bufnr = file_buffer(temp_dir() .. "/modified.txt")
+    vim.api.nvim_buf_set_lines(bufnr, 0, -1, false, { "changed" })
 
-    cleanup.state.recent = {}
-    cleanup._push_recent(bufs[1])
-    cleanup._push_recent(bufs[2])
-    cleanup._push_recent(bufs[3])
+    local should_delete, reason = cleanup._should_delete_buffer(bufnr, root)
 
-    local grace = cleanup._get_grace_buf(vim.api.nvim_get_current_buf(), cleanup._get_alternate_buf())
-    assert.are.same(bufs[2], grace)
-
-    vim.fn.delete(dir, "rf")
+    assert.is_false(should_delete)
+    assert.are.same("modified", reason)
+    assert.is_true(vim.bo[bufnr].modified)
   end)
 
-  it("still protects the alternate buffer when it is not the leaving buffer", function()
-    local dir, paths = make_project_files({ "a.txt", "b.txt", "c.txt", "d.txt" })
-    local bufs = open_sequence(paths)
+  it("ignores unnamed and special buffers", function()
+    local root = temp_dir()
+    local unnamed = vim.api.nvim_create_buf(true, false)
+    local special = vim.api.nvim_create_buf(true, true)
 
-    cleanup.state.recent = { bufs[3], bufs[2], bufs[1] }
-    cleanup.cleanup_once(bufs[1])
-
-    assert.is_true(vim.api.nvim_buf_is_valid(bufs[3]))
-    assert.is_false(vim.bo[bufs[1]].buflisted)
-
-    vim.fn.delete(dir, "rf")
-  end)
-
-  it("does not sweep unrelated recent buffers when another buffer is cleaned", function()
-    local dir, paths = make_project_files({ "a.txt", "b.txt", "c.txt", "d.txt", "e.txt" })
-    local bufs = open_sequence(paths)
-
-    vim.api.nvim_set_current_buf(bufs[5])
-    cleanup.state.recent = { bufs[4], bufs[3], bufs[2], bufs[1] }
-
-    cleanup.cleanup_once(bufs[1])
-
-    assert.is_false(vim.bo[bufs[1]].buflisted)
-    assert.is_true(vim.api.nvim_buf_is_valid(bufs[2]))
-    assert.is_true(vim.api.nvim_buf_is_valid(bufs[3]))
-    assert.is_true(vim.api.nvim_buf_is_valid(bufs[4]))
-    assert.is_true(vim.api.nvim_buf_is_valid(bufs[5]))
-
-    vim.fn.delete(dir, "rf")
+    assert.is_false(cleanup._should_delete_buffer(unnamed, root))
+    assert.is_false(cleanup._should_delete_buffer(special, root))
   end)
 end)

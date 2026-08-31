@@ -1,16 +1,7 @@
 local M = {}
 
+local paths = require("config.project_paths")
 local uv = vim.uv or vim.loop
-
-local project_markers = {
-  ".project-root",
-  ".git",
-  ".jj",
-  "package.json",
-  "pyproject.toml",
-  "Cargo.toml",
-  "Makefile",
-}
 
 M._switching_project = false
 
@@ -264,89 +255,14 @@ local function format_item(max_width)
   end
 end
 
-local function normalize_path(path)
-  if type(path) ~= "string" or path == "" then
-    return nil
-  end
-  local expanded = vim.fn.fnamemodify(path, ":p")
-  if expanded == "" then
-    return nil
-  end
-  local real = uv.fs_realpath(expanded) or expanded
-  return real:gsub("/+", "/"):gsub("/$", "")
-end
-
-local function is_inside(path, root)
-  if not path or not root then
-    return false
-  end
-  return path == root or path:sub(1, #root + 1) == root .. "/"
-end
+local normalize_path = paths.normalize
 
 local function load_saved_roots()
-  local roots_file = vim.fn.expand("~/.config/project-root-picker/project-roots")
-  local roots = {}
-  if vim.fn.filereadable(roots_file) == 0 then
-    return roots
-  end
-
-  for _, line in ipairs(vim.fn.readfile(roots_file)) do
-    local root = normalize_path(vim.trim(line))
-    if root and uv.fs_stat(root) then
-      table.insert(roots, root)
-    end
-  end
-
-  table.sort(roots, function(a, b)
-    return #a > #b
-  end)
-  return roots
-end
-
-local function saved_root_for(path)
-  for _, root in ipairs(load_saved_roots()) do
-    if is_inside(path, root) then
-      return root
-    end
-  end
-  return nil
-end
-
-local function is_inside_saved_root(path)
-  return saved_root_for(path) ~= nil
+  return paths.load_saved_roots()
 end
 
 local function find_project_root(start_path)
-  local path = normalize_path(start_path)
-  if not path then
-    return nil
-  end
-
-  local saved_root = saved_root_for(path)
-  if not saved_root then
-    return nil
-  end
-
-  local stat = uv.fs_stat(path)
-  local dir = stat and stat.type == "directory" and path or vim.fn.fnamemodify(path, ":h")
-
-  while dir and dir ~= "" and dir ~= "/" do
-    for _, marker in ipairs(project_markers) do
-      if uv.fs_stat(dir .. "/" .. marker) then
-        return normalize_path(dir)
-      end
-    end
-    if dir == saved_root then
-      break
-    end
-    local parent = vim.fn.fnamemodify(dir, ":h")
-    if parent == dir then
-      break
-    end
-    dir = parent
-  end
-
-  return saved_root
+  return paths.find_root(start_path, { require_saved_root = true })
 end
 
 local function current_project_root()
@@ -378,12 +294,21 @@ end
 
 local function can_replace_current_session()
   for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
-    if vim.api.nvim_buf_is_valid(bufnr)
-      and vim.bo[bufnr].buflisted
-      and vim.bo[bufnr].buftype == ""
-      and vim.bo[bufnr].modified
-    then
-      return false
+    -- The reset below wipes every buffer number, including unlisted and
+    -- special buffers. Refuse the switch if one carries changes or owns a
+    -- running terminal job.
+    if vim.api.nvim_buf_is_valid(bufnr) and vim.bo[bufnr].modified then
+      return false, "modified buffer"
+    end
+    if vim.api.nvim_buf_is_valid(bufnr) and vim.bo[bufnr].buftype == "terminal" then
+      local job_id = vim.b[bufnr].terminal_job_id
+      if type(job_id) ~= "number" then
+        return false, "terminal buffer"
+      end
+      local ok, status = pcall(vim.fn.jobwait, { job_id }, 0)
+      if not ok or type(status) ~= "table" or status[1] == -1 then
+        return false, "running terminal"
+      end
     end
   end
   return true
@@ -393,92 +318,173 @@ local function clear_arglist()
   vim.cmd("silent! %argdel")
 end
 
-local function is_buffer_visible(bufnr)
-  for _, win in ipairs(vim.api.nvim_list_wins()) do
-    if vim.api.nvim_win_is_valid(win) and vim.api.nvim_win_get_buf(win) == bufnr then
-      return true
-    end
+local function buffer_is_in_root(bufnr, root)
+  if not vim.api.nvim_buf_is_valid(bufnr) or vim.bo[bufnr].buftype ~= "" then
+    return false
   end
-  return false
+  local path = normalize_path(vim.api.nvim_buf_get_name(bufnr))
+  return path ~= nil and paths.is_inside(path, root)
 end
 
-local function wipe_stale_project_buffers()
-  local scope = current_project_root() or normalize_path(vim.fn.getcwd())
+local function source_fallback_buffer(source_root, excluded)
+  local alternate = vim.fn.bufnr("#")
+  if alternate > 0 and not excluded[alternate] and buffer_is_in_root(alternate, source_root) then
+    return alternate, false
+  end
+
   for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
-    if vim.api.nvim_buf_is_valid(bufnr) and vim.bo[bufnr].buftype == "" and not vim.bo[bufnr].modified then
-      local name = vim.api.nvim_buf_get_name(bufnr)
-      local path = normalize_path(name)
-      if path and not is_buffer_visible(bufnr) and not is_inside(path, scope) then
-        pcall(vim.cmd, "silent! bdelete " .. bufnr)
+    if not excluded[bufnr] and buffer_is_in_root(bufnr, source_root) then
+      return bufnr, false
+    end
+  end
+
+  return vim.api.nvim_create_buf(true, false), true
+end
+
+---Keep destination buffers out of the source session. This is needed for
+---BufReadPost/BufNewFile switches, where the destination file is already in a
+---window by the time the scheduled switch runs.
+local function without_destination_buffers_in_session(source_root, destination_root, callback)
+  local excluded = {}
+  local listed = {}
+  for _, bufnr in ipairs(vim.api.nvim_list_bufs()) do
+    if buffer_is_in_root(bufnr, destination_root) then
+      excluded[bufnr] = true
+      listed[bufnr] = vim.bo[bufnr].buflisted
+    end
+  end
+
+  local window_buffers = {}
+  local fallback
+  local created_fallback = false
+  for _, win in ipairs(vim.api.nvim_list_wins()) do
+    if vim.api.nvim_win_is_valid(win) then
+      local bufnr = vim.api.nvim_win_get_buf(win)
+      if excluded[bufnr] then
+        if not fallback then
+          fallback, created_fallback = source_fallback_buffer(source_root, excluded)
+        end
+        window_buffers[win] = bufnr
+        vim.api.nvim_win_set_buf(win, fallback)
       end
     end
   end
+
+  for bufnr in pairs(excluded) do
+    if vim.api.nvim_buf_is_valid(bufnr) then
+      vim.bo[bufnr].buflisted = false
+    end
+  end
+
+  local ok, result = xpcall(callback, debug.traceback)
+
+  for bufnr, was_listed in pairs(listed) do
+    if vim.api.nvim_buf_is_valid(bufnr) then
+      vim.bo[bufnr].buflisted = was_listed
+    end
+  end
+  for win, bufnr in pairs(window_buffers) do
+    if vim.api.nvim_win_is_valid(win) and vim.api.nvim_buf_is_valid(bufnr) then
+      vim.api.nvim_win_set_buf(win, bufnr)
+    end
+  end
+  if created_fallback and fallback and vim.api.nvim_buf_is_valid(fallback) then
+    pcall(vim.api.nvim_buf_delete, fallback, { force = true })
+  end
+
+  if not ok then
+    error(result, 0)
+  end
+  return result
 end
 
 local function reset_current_session_state()
-  vim.cmd("silent! tabonly")
-  vim.cmd("silent! only")
-  vim.cmd("silent! %bwipeout!")
-  vim.cmd("silent! enew")
+  vim.cmd("silent tabonly")
+  vim.cmd("silent only")
+  vim.cmd("silent %bwipeout")
+  vim.cmd("silent enew")
 end
 
-local function save_current_project_session()
+local function save_current_project_session(source_root, destination_root)
   local ok_persistence, persistence = pcall(require, "persistence")
   if not ok_persistence then
     return false
   end
-  clear_arglist()
-  wipe_stale_project_buffers()
-  persistence.save()
+
+  without_destination_buffers_in_session(source_root, destination_root, function()
+    clear_arglist()
+    persistence.save()
+  end)
   return true
 end
 
-local function restore_project_session()
+local function replace_with_project_session()
   local ok_persistence, persistence = pcall(require, "persistence")
-  if not ok_persistence then
-    return false
-  end
-
-  local session = persistence.current()
-  if vim.fn.filereadable(session) == 0 then
-    session = persistence.current({ branch = false })
-  end
-  if vim.fn.filereadable(session) == 0 then
-    return false
+  local session
+  if ok_persistence then
+    session = persistence.current()
+    if vim.fn.filereadable(session) == 0 then
+      session = persistence.current({ branch = false })
+    end
   end
 
   clear_arglist()
   reset_current_session_state()
+
+  if not ok_persistence or vim.fn.filereadable(session) == 0 then
+    return false
+  end
   persistence.load()
   return true
 end
 
-local function switch_to_project(path, opts)
+local function switch_to_project_root(project_root, opts)
   opts = opts or {}
-  local project_root = find_project_root(path) or normalize_path(path)
+  project_root = normalize_path(project_root)
   if not project_root then
     return false
   end
 
-  local current_root = cwd_project_root() or normalize_path(vim.fn.getcwd())
-  if current_root == project_root or normalize_path(vim.fn.getcwd()) == project_root then
+  local source_cwd = normalize_path(vim.fn.getcwd())
+  local source_root = cwd_project_root() or source_cwd
+  if source_root == project_root or source_cwd == project_root then
     return true
   end
 
-  if not can_replace_current_session() then
-    vim.notify("Save or close modified buffers before switching project sessions", vim.log.levels.WARN)
+  local can_replace, blocker = can_replace_current_session()
+  if not can_replace then
+    vim.notify("Cannot switch project sessions: close the " .. blocker .. " first", vim.log.levels.WARN)
     return false
   end
 
   M._switching_project = true
-  save_current_project_session()
-  set_project_cwd(project_root)
-  local restored = restore_project_session()
+  local ok, restored = xpcall(function()
+    save_current_project_session(source_root, project_root)
+    set_project_cwd(project_root)
+    return replace_with_project_session()
+  end, debug.traceback)
+  M._switching_project = false
+
+  if not ok then
+    if source_cwd then
+      pcall(vim.api.nvim_set_current_dir, source_cwd)
+    end
+    vim.notify("Project session switch failed:\n" .. restored, vim.log.levels.ERROR)
+    return false
+  end
+
   if not restored and not opts.silent_no_session then
     browse_project_files(project_root)
   end
-  M._switching_project = false
   return true
+end
+
+local function switch_to_project(path, opts)
+  local project_root = find_project_root(path) or normalize_path(path)
+  if not project_root then
+    return false
+  end
+  return switch_to_project_root(project_root, opts)
 end
 
 local function open_project_entry(path)
@@ -1065,5 +1071,7 @@ M._normalize_path = normalize_path
 M._find_project_root = find_project_root
 M._current_project_root = current_project_root
 M._load_saved_roots = load_saved_roots
+M._can_replace_current_session = can_replace_current_session
+M._switch_to_project_root = switch_to_project_root
 
 return M

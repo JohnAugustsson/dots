@@ -4,8 +4,6 @@ require("config.project_picker").setup()
 
 local stash = "z"
 
-vim.opt.clipboard = "unnamedplus"
-
 vim.keymap.set({ "n", "x" }, "<M-p>", '"' .. stash .. "p", { noremap = true, silent = true })
 vim.keymap.set({ "n", "x" }, "<M-P>", '"' .. stash .. "P", { noremap = true, silent = true })
 

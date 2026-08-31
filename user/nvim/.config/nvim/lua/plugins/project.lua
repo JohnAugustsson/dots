@@ -1,26 +1,14 @@
-local picker = require("config.project_picker")
-
 return {
   {
     "ahmedkhalf/project.nvim",
+    lazy = false,
     config = function(_, opts)
       require("project_nvim").setup(opts)
     end,
-    keys = {
-      {
-        "<leader>fp",
-        picker.pick_projects_only,
-        desc = "Projects",
-      },
-      {
-        "<C-f>",
-        picker.pick_root_entries,
-        desc = "Project Root Search",
-        mode = "n",
-      },
-    },
     opts = {
-      manual_mode = false,
+      -- project_picker owns cwd/session transitions; automatic BufEnter chdir
+      -- would race its source-session save.
+      manual_mode = true,
       detection_methods = { "lsp", "pattern" },
       patterns = {
         ".project-root",

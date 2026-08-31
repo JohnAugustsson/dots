@@ -1,38 +1,17 @@
-local uv = vim.uv or vim.loop
-
 local M = {}
+
+local paths = require("config.project_paths")
+local uv = vim.uv or vim.loop
 
 M.opts = {
   enabled = true,
   debug = false,
 }
 
-local project_markers = {
-  ".project-root",
-  ".git",
-  ".jj",
-  "package.json",
-  "pyproject.toml",
-  "Cargo.toml",
-  "Makefile",
-}
-
 local function notify(msg, level)
   if M.opts.debug then
     vim.notify(msg, level or vim.log.levels.DEBUG)
   end
-end
-
-local function normalize_path(path)
-  if type(path) ~= "string" or path == "" then
-    return nil
-  end
-  local expanded = vim.fn.fnamemodify(path, ":p")
-  if expanded == "" then
-    return nil
-  end
-  local real = uv.fs_realpath(expanded) or expanded
-  return real:gsub("/+", "/"):gsub("/$", "")
 end
 
 local function buf_name(bufnr)
@@ -59,7 +38,7 @@ local function is_normal_file_buffer(bufnr)
     return false
   end
 
-  local path = normalize_path(name)
+  local path = paths.normalize(name)
   if not path then
     return false
   end
@@ -81,54 +60,11 @@ local function is_buffer_visible(bufnr)
   return false
 end
 
-local function is_inside(path, root)
-  if not path or not root then
-    return false
-  end
-  return path == root or path:sub(1, #root + 1) == root .. "/"
-end
-
-local function find_project_root(start_path)
-  local path = normalize_path(start_path)
-  if not path then
-    return nil
-  end
-
-  local stat = uv.fs_stat(path)
-  local dir = stat and stat.type == "directory" and path or vim.fn.fnamemodify(path, ":h")
-
-  while dir and dir ~= "" and dir ~= "/" do
-    for _, marker in ipairs(project_markers) do
-      if uv.fs_stat(dir .. "/" .. marker) then
-        return normalize_path(dir)
-      end
-    end
-    local parent = vim.fn.fnamemodify(dir, ":h")
-    if parent == dir then
-      break
-    end
-    dir = parent
-  end
-
-  return nil
-end
-
 local function current_scope_root()
-  local cwd = normalize_path(vim.fn.getcwd())
-
-  local ok_project, project_mod = pcall(require, "project_nvim.project")
-  if ok_project and type(project_mod.get_project_root) == "function" then
-    local ok, root = pcall(project_mod.get_project_root)
-    root = ok and normalize_path(root) or nil
-    if root then
-      return root, "project.nvim"
-    end
-  end
-
-  local current = normalize_path(buf_name(vim.api.nvim_get_current_buf()))
-  local root = find_project_root(current) or find_project_root(cwd)
+  local cwd = paths.normalize(vim.fn.getcwd())
+  local root = paths.find_root(cwd)
   if root then
-    return root, "marker"
+    return root, "cwd-marker"
   end
 
   return cwd, "cwd"
@@ -145,8 +81,8 @@ local function should_delete_buffer(bufnr, scope_root)
     return false, "visible"
   end
 
-  local path = normalize_path(buf_name(bufnr))
-  if is_inside(path, scope_root) then
+  local path = paths.normalize(buf_name(bufnr))
+  if paths.is_inside(path, scope_root) then
     return false, "inside-scope"
   end
 
@@ -207,10 +143,10 @@ function M.setup(opts)
   })
 end
 
-M._normalize_path = normalize_path
+M._normalize_path = paths.normalize
 M._is_normal_file_buffer = is_normal_file_buffer
 M._is_buffer_visible = is_buffer_visible
-M._find_project_root = find_project_root
+M._find_project_root = paths.find_root
 M._current_scope_root = current_scope_root
 M._should_delete_buffer = should_delete_buffer
 
