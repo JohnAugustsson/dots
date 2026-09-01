@@ -39,7 +39,7 @@
   "nvim-ts-autotag": { "branch": "main", "commit": "88c1453db4ba7dd24131086fe51fdf74e587d275" },
   "persistence.nvim": { "branch": "main", "commit": "b20b2a7887bd39c1a356980b45e03250f3dce49c" },
   "plenary.nvim": { "branch": "master", "commit": "74b06c6c75e4eeb3108ec01852001636d85a932b" },
-  "project-root-picker": { "branch": "main", "commit": "ba3c8a7c1951fae79b8717ee8336e4fed604b8fa" },
+  "project-root-picker": { "branch": "main", "commit": "c59c38a1516611dfe985b8f19031332b9319f464" },
   "pywal16.nvim": { "branch": "main", "commit": "190cc81189ebcb7a55cb73a936329675394d676f" },
   "snacks.nvim": { "branch": "main", "commit": "ad9ede6a9cddf16cedbd31b8932d6dcdee9b716e" },
   "telescope-fzf-native.nvim": { "branch": "main", "commit": "b25b749b9db64d375d782094e2b9dce53ad53a40" },
