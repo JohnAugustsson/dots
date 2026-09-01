@@ -1,16 +1,16 @@
 # Neovim configuration
 
 This is a personal [LazyVim](https://www.lazyvim.org/) configuration. Its main
-custom subsystem connects the shared `project-root-picker` scripts to Neovim,
-keeps the working directory aligned with the selected project, and saves or
-restores a `persistence.nvim` session when crossing project boundaries.
+custom subsystem uses
+[`project-root-picker`](https://github.com/JohnAugustsson/project-root-picker)
+to search projects, keep the working directory aligned with the selected
+project, and save or restore a `persistence.nvim` session when crossing project
+boundaries.
 
 Project roots are discovered below the directories listed in
-`~/.config/project-root-picker/project-roots`. Marker names and path
-normalization live in `lua/config/project_paths.lua`; both the picker and the
-outside-project buffer cleanup use that module. Symlinked paths, including new
-files whose final component does not exist yet, are resolved through their
-nearest existing ancestor.
+`~/.config/project-root-picker/project-roots`. Discovery, path normalization,
+session switching, and outside-project buffer cleanup now live in the external
+plugin so Bash, Fish, and Neovim share one implementation.
 
 Session switches are deliberately conservative:
 
@@ -25,15 +25,5 @@ Session switches are deliberately conservative:
 The project search mappings are `<C-f>` (all configured roots), `<C-g>` (home),
 `<C-d>` (current project), `<C-b>` (cwd), and `<leader>fp` (projects only).
 
-## Tests
-
-Run the headless Plenary suite from this directory:
-
-```sh
-nvim --headless --clean -u tests/minimal_init.lua \
-  -c "PlenaryBustedDirectory tests/spec { minimal_init = 'tests/minimal_init.lua' }" \
-  -c qa
-```
-
-The specs cover buffer cleanup, root/path normalization (including new files
-below symlinks), and source/destination session safety.
+The plugin repository contains the Python, shell, installer, and headless
+Neovim tests for this subsystem.

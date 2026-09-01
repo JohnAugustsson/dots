@@ -119,10 +119,15 @@ if status is-interactive
     bind --erase --preset \ce
     bind --erase --preset \cp
     bind \ce exit
-    bind \cf __fzf_insert_path
-    bind \cg __fzf_insert_global_path
-    bind \cd __fzf_insert_project_path
-    bind \cb __fzf_insert_cwd_path
+
+    if functions -q project_root_picker_bindings
+        project_root_picker_bindings
+    else
+        set -l project_root_picker_integration ~/.local/share/project-root-picker/shell/project-root-picker.fish
+        if test -r $project_root_picker_integration
+            source $project_root_picker_integration
+        end
+    end
 
     if command -q zoxide
         zoxide init fish | source

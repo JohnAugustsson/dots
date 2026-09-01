@@ -1,14 +1,14 @@
 local function live_grep_current_project()
   local builtin = require("telescope.builtin")
-  local project = require("config.project_picker")
-  local cwd = project._current_project_root() or vim.fn.getcwd()
+  local project = require("project_root_picker")
+  local cwd = project.current_root() or vim.fn.getcwd()
   builtin.live_grep({ cwd = cwd, prompt_title = "Live Grep Current Project" })
 end
 
 local function live_grep_all_projects()
   local builtin = require("telescope.builtin")
-  local project = require("config.project_picker")
-  local roots = project._load_saved_roots()
+  local project = require("project_root_picker")
+  local roots = project.saved_roots()
   if #roots == 0 then
     vim.notify("No project roots configured. Use: project-root", vim.log.levels.WARN)
     return

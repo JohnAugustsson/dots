@@ -1,26 +1,21 @@
 return {
   {
-    "ahmedkhalf/project.nvim",
+    "JohnAugustsson/project-root-picker",
     lazy = false,
-    config = function(_, opts)
-      require("project_nvim").setup(opts)
-    end,
+    main = "project_root_picker",
+    dependencies = {
+      { "folke/persistence.nvim", opts = {} },
+    },
     opts = {
-      -- project_picker owns cwd/session transitions; automatic BufEnter chdir
-      -- would race its source-session save.
-      manual_mode = true,
-      detection_methods = { "lsp", "pattern" },
-      patterns = {
-        ".project-root",
+      sessions = {
+        enabled = true,
+        auto_switch = true,
+        provider = "persistence",
+        browse_on_missing = true,
       },
-      exclude_dirs = {
-        "~/Downloads/*",
-        "~/.local/*",
-        "~/.cache/*",
+      cleanup = {
+        enabled = true,
       },
-      show_hidden = true,
-      silent_chdir = true,
-      scope_chdir = "global",
     },
   },
 }
